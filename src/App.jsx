@@ -525,7 +525,7 @@ function Divider({ style = {} }) {
   return <div style={{ height: 1, background: T.borderFaint, margin: "14px 0", ...style }} />;
 }
 function Card({ children, style = {}, onClick }) {
-  return <div onClick={onClick} style={{ background: T.panel, border: `1px solid ${T.borderFaint}`, borderRadius: 8, padding: 16, marginBottom: 8, cursor: onClick ? "pointer" : "default", transition: "background 0.15s, border-color 0.15s", ...style }}>{children}</div>;
+  return <div onClick={onClick} style={{ background: T.panel, border: `1px solid ${T.borderFaint}`, borderRadius: 8, padding: 12, marginBottom: 8, cursor: onClick ? "pointer" : "default", transition: "background 0.15s, border-color 0.15s", ...style }}>{children}</div>;
 }
 function Btn({ children, primary, small, onClick, disabled, style = {} }) {
   const base = { fontFamily: T.fontSans, fontWeight: 500, fontSize: small ? 11 : 12, padding: small ? "4px 10px" : "8px 16px", borderRadius: 6, cursor: disabled ? "default" : "pointer", border: "none", transition: "opacity 0.15s", opacity: disabled ? 0.5 : 1 };
@@ -566,22 +566,13 @@ function FilterBar({ filter, onChange, pills = [], placeholder = "Search…", co
 }
 
 // ─────────────────────────────────────────────────────────────────
-// SCORE RING
+// SCORE NUMBER
 // ─────────────────────────────────────────────────────────────────
-function ScoreRing({ score, size = 64 }) {
-  const r = 38, circ = 2 * Math.PI * r, pct = Math.max(0, Math.min(100, score || 0));
+function ScoreNum({ score, hero = false }) {
+  const pct = Math.max(0, Math.min(100, score || 0));
   const color = scoreColor(pct);
   return (
-    <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
-      <svg width={size} height={size} viewBox="0 0 80 80" style={{ transform: "rotate(-90deg)" }}>
-        <circle cx="40" cy="40" r={r} fill="none" stroke={T.surface} strokeWidth="5" />
-        <circle cx="40" cy="40" r={r} fill="none" stroke={color} strokeWidth="5" strokeDasharray={circ} strokeDashoffset={circ - (pct / 100) * circ} strokeLinecap="round" style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.16,1,0.3,1)" }} />
-      </svg>
-      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-        <span style={{ fontFamily: T.fontMono, fontSize: size > 56 ? 16 : 13, fontWeight: 600, color, lineHeight: 1 }}>{pct}</span>
-        <span style={{ fontFamily: T.fontMono, fontSize: 8, color: T.textMuted, marginTop: 1 }}>/ 100</span>
-      </div>
-    </div>
+    <span style={{ fontFamily: T.fontMono, fontSize: hero ? 48 : 24, fontWeight: 700, color, lineHeight: 1, flexShrink: 0 }}>{pct}</span>
   );
 }
 
@@ -750,7 +741,7 @@ function TopJobsToday({ jobs, onStatusChange }) {
       <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
         {top.map(job => (
           <div key={job.id} className="jsa-card-hover" style={{ background: T.surface, border: `1px solid ${T.borderFaint}`, borderRadius: 7, padding: "10px 12px", display: "flex", gap: 14, alignItems: "flex-start", transition: "background 0.15s" }}>
-            <ScoreRing score={job.final_score} size={56} />
+            <ScoreNum score={job.final_score} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: T.fontSans, fontWeight: 500, fontSize: 13, color: T.textPrimary, marginBottom: 2 }}>{job.title || "Untitled"}</div>
               <div style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, marginBottom: 8, letterSpacing: "0.04em" }}>{[job.company, job.location, job.created_at && new Date(job.created_at).toLocaleDateString()].filter(Boolean).join(" · ")}</div>
@@ -768,7 +759,7 @@ function TopJobsToday({ jobs, onStatusChange }) {
 // ─────────────────────────────────────────────────────────────────
 // EVAL PANEL
 // ─────────────────────────────────────────────────────────────────
-function EvalPanel({ title, subtitle, result, jd_text, loading, error, saving, saved, onSave }) {
+function EvalPanel({ title, subtitle, result, jd_text, loading, error, saving, saved, onSave, onTailor }) {
   if (!loading && !result && !error) return null;
   const enriched = result ? enrichJob({ ...result, jd_text }) : null;
   return (
@@ -780,16 +771,15 @@ function EvalPanel({ title, subtitle, result, jd_text, loading, error, saving, s
           {subtitle && <span style={{ fontFamily: T.fontSans, fontSize: 11, color: T.textMuted }}>{subtitle}</span>}
         </div>
       )}
-      <div style={{ padding: 16 }}>
+      <div style={{ padding: 12 }}>
         {loading && <div className="pulse" style={{ textAlign: "center", padding: "28px 0", fontFamily: T.fontMono, fontSize: 11, color: T.textMuted, letterSpacing: "0.08em" }}>ANALYZING FIT…</div>}
         {error && <div style={{ padding: "8px 12px", background: T.redBg, border: `1px solid ${T.redBorder}`, borderRadius: 6, fontFamily: T.fontSans, fontSize: 12, color: T.red }}>{error}</div>}
         {result && !loading && enriched && (
           <>
-            <div style={{ display: "flex", gap: 16, alignItems: "flex-start", marginBottom: 14 }}>
-              <ScoreRing score={enriched.final_score} size={72} />
+            <div style={{ display: "flex", gap: 16, alignItems: "center", marginBottom: 14 }}>
+              <ScoreNum score={enriched.final_score} hero />
               <div style={{ flex: 1 }}>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}><RecBadge rec={result.recommendation} /><PursuitBadge pursuit={enriched._pursuit} compact /></div>
-                <PursuitBadge pursuit={enriched._pursuit} strategy={enriched._time_strategy} />
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6 }}><RecBadge rec={result.recommendation} /><PursuitBadge pursuit={enriched._pursuit} compact /></div>
                 <LocationBadge job={enriched} />
                 <ScoreMeta enriched={enriched} />
               </div>
@@ -798,13 +788,18 @@ function EvalPanel({ title, subtitle, result, jd_text, loading, error, saving, s
             <ScoreExplanationBlock explanation={result.score_explanation} />
             <ScoreWarnings job={{ ...result, location: result.location || "" }} jd_text={jd_text} />
             <Divider />
-            <ScoreBar label="Skills Match" score={result.skills_match} />
-            <ScoreBar label="Experience Match" score={result.experience_match} />
-            <ScoreBar label="Culture Fit" score={result.culture_match} />
-            <Divider />
-            <Label>Score Breakdown</Label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "4px 16px", marginTop: 8 }}>
-              {[{ label: "Compensation", key: "compensation_score" }, { label: "Work/Life", key: "work_life_balance_score" }, { label: "Growth", key: "growth_score" }, { label: "Location", key: "location_score" }, { label: "Company", key: "company_score" }, { label: "Confidence", key: "confidence_score" }].map(({ label, key }) => <ScoreBar key={key} label={label} score={result[key]} compact />)}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+              {[
+                { label: "Skills",      value: result.skills_match },
+                { label: "Experience",  value: result.experience_match },
+                { label: "Location",    value: result.location_score },
+                { label: "Work/Life",   value: result.work_life_balance_score },
+              ].map(({ label, value }) => (
+                <div key={label} style={{ background: T.surface, borderRadius: 7, padding: "10px 12px", border: `1px solid ${T.borderFaint}` }}>
+                  <div style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, marginBottom: 4 }}>{label.toUpperCase()}</div>
+                  <span style={{ fontFamily: T.fontMono, fontSize: 32, fontWeight: 700, color: scoreColor(value || 0), lineHeight: 1 }}>{value ?? "—"}</span>
+                </div>
+              ))}
             </div>
             <Divider />
             {[{ label: "Strengths", items: result.strengths, color: T.green }, { label: "Gaps", items: result.gaps, color: T.red }, { label: "Quick Wins", items: result.quick_wins, color: T.blue }].map(({ label, items, color }) =>
@@ -813,8 +808,12 @@ function EvalPanel({ title, subtitle, result, jd_text, loading, error, saving, s
             {result.missing_keywords?.length > 0 && <div style={{ marginBottom: 10 }}><Label>Missing Keywords</Label><div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>{result.missing_keywords.map(kw => <span key={kw} style={{ fontFamily: T.fontMono, fontSize: 10, color: T.amber, padding: "2px 7px", border: `1px solid ${T.amberBorder}`, borderRadius: 3 }}>{kw}</span>)}</div></div>}
             <Divider />
             <div style={{ fontFamily: T.fontSerif, fontStyle: "italic", fontWeight: 300, fontSize: 13, color: T.textSecondary, lineHeight: 1.75, padding: "12px 14px", background: T.surface, borderRadius: 6, borderLeft: `2px solid ${T.accentDim}`, marginBottom: 14 }}>{result.verdict}</div>
-            <div style={{ textAlign: "right" }}>
-              {saved ? <span style={{ fontFamily: T.fontMono, fontSize: 10, color: T.green, letterSpacing: "0.06em" }}>✓ SAVED</span> : <Btn primary onClick={onSave} disabled={saving}>{saving ? "Saving…" : "Save to Supabase →"}</Btn>}
+            <div style={{ display: "flex", gap: 8 }}>
+              {saved
+                ? <span style={{ fontFamily: T.fontMono, fontSize: 10, color: T.green, letterSpacing: "0.06em" }}>✓ SAVED TO PIPELINE</span>
+                : <Btn primary onClick={onSave} disabled={saving} style={{ flex: 1 }}>{saving ? "Saving…" : "Save to Pipeline"}</Btn>
+              }
+              {onTailor && <Btn onClick={onTailor} style={{ flex: 1 }}>Tailor Resume →</Btn>}
             </div>
           </>
         )}
@@ -1291,49 +1290,6 @@ async function doQuickScore(job) {
       console.error("[quickScore]", err.message);
       setQuickScoring(prev => { const next = { ...prev, [job.url]: "error:" + err.message }; localStorage.setItem("jsa_quick_scoring", JSON.stringify(next)); return next; });
     }
-  }  function doImportPastedJobs() {
-    setEmailError("");
-    const raw = emailPaste.trim();
-    if (!raw) { setEmailError("Paste the JSON from Claude first."); return; }
-
-    // Try parsing as JSON array
-    let parsed = [];
-    try {
-      const clean = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/, "").trim();
-      parsed = JSON.parse(clean);
-      if (!Array.isArray(parsed)) throw new Error("Expected a JSON array");
-    } catch {
-      // Try to extract inline JSON array if wrapped in prose
-      const match = raw.match(/\[[\s\S]*\]/);
-      if (match) {
-        try { parsed = JSON.parse(match[0]); } catch { parsed = []; }
-      }
-    }
-
-    if (!parsed.length) {
-      setEmailError("Couldn't parse jobs from the pasted text. Make sure you copied the full JSON array from Claude.");
-      return;
-    }
-
-    // Deduplicate by URL against existing emailJobs
-    const seen = new Set(emailJobs.map(j => j.url).filter(Boolean));
-    const newJobs = parsed.filter(j => {
-      if (!j.title || !j.url) return false;
-      if (seen.has(j.url)) return false;
-      seen.add(j.url);
-      return true;
-    }).map(j => ({ ...j, source: "linkedin_alert" }));
-
-    setEmailJobs(prev => {
-      const updated = [...prev, ...newJobs];
-      localStorage.setItem("jsa_email_jobs", JSON.stringify(updated));
-      return updated;
-    });
-    const now = new Date();
-    setEmailLastFetched(now);
-    localStorage.setItem("jsa_email_fetched", now.toISOString());
-    setEmailPaste("");
-    if (newJobs.length === 0) setEmailError("No new jobs found — all roles already in the list or missing required fields.");
   }
 
   async function doRunIngestion() {
@@ -1556,7 +1512,7 @@ async function doQuickScore(job) {
 
   const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 };
   const grid3 = { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 };
-  const TABS = [{ key: "discover", label: "DISCOVER" }, { key: "manual", label: "EVALUATE" }, { key: "saved", label: "SAVED" }, { key: "tailor", label: "TAILOR" }];
+  const TABS = [{ key: "discover", label: "Search" }, { key: "manual", label: "Evaluate" }, { key: "saved", label: "Pipeline" }, { key: "tailor", label: "Tailor" }];
 
   // Domain badge colors
   const DOMAIN_COLORS = { observability: { color: T.green, bg: T.greenBg, border: T.greenBorder }, infrastructure: { color: T.blue, bg: T.blueBg, border: T.blueBorder }, platform: { color: T.amber, bg: T.amberBg, border: T.amberBorder } };
@@ -1565,53 +1521,46 @@ async function doQuickScore(job) {
     <div style={{ fontFamily: T.fontSans, maxWidth: 820, margin: "0 auto", padding: "28px 18px", background: T.bg, minHeight: "100vh" }}>
 
       {/* HEADER */}
-      <div style={{ marginBottom: 24, paddingBottom: 18, borderBottom: `1px solid ${T.borderFaint}` }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 4 }}>
-          <h1 style={{ fontFamily: T.fontMono, fontSize: 16, fontWeight: 600, letterSpacing: "0.1em", color: T.textPrimary }}>JOB SEARCH AGENT</h1>
-          <span style={{ fontFamily: T.fontMono, fontSize: 9, color: T.accentDim, letterSpacing: "0.12em" }}>◆ ACTIVE</span>
-        </div>
-        <div style={{ fontFamily: T.fontSerif, fontStyle: "italic", fontWeight: 300, fontSize: 13, color: T.textMuted }}>VP / Director-level · Platform, Infrastructure, Observability, AI</div>
-      </div>
-
-      <TopJobsToday jobs={supabaseJobs} onStatusChange={handleStatusChange} />
-
-      {/* SETTINGS */}
-      <div style={{ marginBottom: 20, background: T.panel, border: `1px solid ${T.borderFaint}`, borderRadius: 8 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px" }}>
-          <div onClick={() => setSettingsOpen(o => !o)} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", flex: 1 }}>
-            <span style={{ fontFamily: T.fontMono, fontSize: 9, fontWeight: 600, letterSpacing: "0.12em", color: T.textMuted }}>⚙ SETTINGS</span>
-            <span style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted }}>{settingsOpen ? "▲" : "▼"}</span>
+      <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${T.borderFaint}`, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 3 }}>
+            <h1 style={{ fontFamily: T.fontMono, fontSize: 15, fontWeight: 600, letterSpacing: "0.08em", color: T.textPrimary }}>Kairos</h1>
+            <span style={{ fontFamily: T.fontMono, fontSize: 9, color: T.accentDim, letterSpacing: "0.12em" }}>◆ ACTIVE</span>
           </div>
-          <button onClick={toggleTheme} style={{ fontFamily: T.fontMono, fontSize: 9, fontWeight: 600, letterSpacing: "0.08em", padding: "3px 9px", borderRadius: 4, border: `1px solid ${T.border}`, background: T.surface, color: T.textSecondary, cursor: "pointer", transition: "all 0.15s" }}>
-            {theme === "light" ? "◑ DARK" : "◐ LIGHT"}
+          <div style={{ fontFamily: T.fontSerif, fontStyle: "italic", fontWeight: 300, fontSize: 12, color: T.textMuted }}>VP / Director-level · Platform, Infrastructure, Observability, AI</div>
+        </div>
+        <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 2 }}>
+          <button onClick={toggleTheme} style={{ fontFamily: T.fontMono, fontSize: 9, fontWeight: 600, letterSpacing: "0.06em", padding: "4px 10px", borderRadius: 4, border: `1px solid ${T.border}`, background: T.surface, color: T.textSecondary, cursor: "pointer" }}>
+            {theme === "light" ? "◑ Dark" : "◐ Light"}
           </button>
+          <button onClick={() => setSettingsOpen(o => !o)} title="Settings" style={{ fontFamily: T.fontSans, fontSize: 15, padding: "2px 8px", borderRadius: 4, border: `1px solid ${settingsOpen ? T.accentDim : T.border}`, background: settingsOpen ? T.greenBg : T.surface, color: settingsOpen ? T.green : T.textMuted, cursor: "pointer", lineHeight: 1 }}>⚙</button>
         </div>
-        {settingsOpen && (
-          <div style={{ padding: "0 14px 14px" }}>
-            <div style={{ marginBottom: 10 }}><Label>Anthropic API Key</Label><input type="password" className="jsa-input" value={anthropicKey} onChange={e => { setAnthropicKey(e.target.value); localStorage.setItem("jsa_anthropic_key", e.target.value); }} placeholder="sk-ant-api03-…" /></div>
-            <div style={{ marginBottom: 10 }}><Label>Candidate Profile</Label><textarea className="jsa-textarea" style={{ height: 80 }} value={profile} onChange={e => setProfile(e.target.value)} /></div>
-            <div style={{ marginBottom: 10 }}>
-              <Label>Master Resume <span style={{ fontFamily: T.fontSans, fontWeight: 300, letterSpacing: 0, textTransform: "none", color: T.textMuted, fontSize: 10 }}>— paste from PDF</span></Label>
-              <textarea className="jsa-textarea" style={{ height: 100 }} value={masterResume} onChange={e => { setMasterResume(e.target.value); localStorage.setItem("jsa_master_resume", e.target.value); }} placeholder="Paste your full resume text here…" />
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* SETTINGS DRAWER */}
+      {settingsOpen && (
+        <div style={{ marginBottom: 16, background: T.panel, border: `1px solid ${T.borderFaint}`, borderRadius: 8, padding: 12 }}>
+          <div style={{ marginBottom: 10 }}><input type="password" className="jsa-input" value={anthropicKey} onChange={e => { setAnthropicKey(e.target.value); localStorage.setItem("jsa_anthropic_key", e.target.value); }} placeholder="Anthropic API key (sk-ant-…)" /></div>
+          <div style={{ marginBottom: 10 }}><textarea className="jsa-textarea" style={{ height: 80 }} value={profile} onChange={e => setProfile(e.target.value)} placeholder="Candidate profile…" /></div>
+          <div><textarea className="jsa-textarea" style={{ height: 100 }} value={masterResume} onChange={e => { setMasterResume(e.target.value); localStorage.setItem("jsa_master_resume", e.target.value); }} placeholder="Master resume — paste from PDF…" /></div>
+        </div>
+      )}
 
       {/* TABS */}
       <div style={{ display: "flex", gap: 2, marginBottom: 20, background: T.surface, borderRadius: 7, padding: 3, border: `1px solid ${T.borderFaint}` }}>
         {TABS.map(t => (
           <button key={t.key} className="jsa-tab"
             onClick={() => { if (t.key === tab) return; setTab(t.key); if (t.key === "manual") { setEvalResult(null); setEvalError(""); setManualJobId(null); } }}
-            style={{ flex: 1, fontFamily: T.fontMono, fontSize: 9, fontWeight: 600, letterSpacing: "0.1em", padding: "7px 0", borderRadius: 5, border: "none", cursor: "pointer", transition: "all 0.15s", background: tab === t.key ? T.panel : "transparent", color: tab === t.key ? T.textPrimary : T.textMuted, boxShadow: tab === t.key ? "0 1px 3px rgba(0,0,0,0.4)" : "none" }}>
+            style={{ flex: 1, fontFamily: T.fontSans, fontSize: 13, fontWeight: 500, padding: "7px 0", borderRadius: 5, border: "none", cursor: "pointer", transition: "all 0.15s", background: tab === t.key ? T.panel : "transparent", color: tab === t.key ? T.textPrimary : T.textMuted, boxShadow: tab === t.key ? "0 1px 3px rgba(0,0,0,0.15)" : "none" }}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* ════ DISCOVER ════ */}
+      {/* ════ SEARCH ════ */}
       {tab === "discover" && (
         <>
+          <TopJobsToday jobs={supabaseJobs} onStatusChange={handleStatusChange} />
           <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
             {[{ key: "auto", label: "⚡ Auto-Discover" }, { key: "email", label: "📧 Email Alerts" }].map(s => (
               <button key={s.key} className="jsa-toggle" onClick={() => setDiscoverSection(s.key)}
@@ -1627,7 +1576,6 @@ async function doQuickScore(job) {
                 <div style={{ fontFamily: T.fontSans, fontSize: 12, color: T.textMuted, lineHeight: 1.7, marginBottom: 14 }}>
                   Fetches Director/VP/Staff/Group PM roles from configured company job boards, filters titles, deduplicates, inserts new roles into Supabase, and runs Claude evaluation automatically.
                 </div>
-                <Label style={{ marginBottom: 8 }}>Configured Sources</Label>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 14 }}>
                   {SOURCES.map(({ id, ats, tier, domain }) => {
                     const dc = DOMAIN_COLORS[domain] || DOMAIN_COLORS.platform;
@@ -1701,7 +1649,6 @@ async function doQuickScore(job) {
                 <div style={{ fontFamily: T.fontSans, fontSize: 12, color: T.textMuted, lineHeight: 1.7, marginBottom: 14 }}>
                   Paste the plain-text body of a LinkedIn job alert email below, then click Parse Jobs to extract the listings.
                 </div>
-                <Label>LinkedIn Alert Email Body</Label>
                 <textarea
                   className="jsa-textarea"
                   style={{ height: 140, marginBottom: 10 }}
@@ -1788,7 +1735,7 @@ async function doQuickScore(job) {
                           </div>
                         </div>
                         <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
-                          {aeScored && <ScoreRing score={enrichJob({ ...ae.result, jd_text: ae.jd, location: job.location }).final_score} size={44} />}
+                          {aeScored && <ScoreNum score={enrichJob({ ...ae.result, jd_text: ae.jd, location: job.location }).final_score} />}
                           <Pill color={T.blue} bg={T.blueBg} border={T.blueBorder}>LinkedIn</Pill>
                           <a href={job.url} target="_blank" rel="noopener noreferrer"
                             style={{ fontFamily: T.fontMono, fontSize: 9, fontWeight: 600, letterSpacing: "0.08em", color: T.green, textDecoration: "none", padding: "3px 9px", border: `1px solid ${T.greenBorder}`, borderRadius: 3, background: T.greenBg }}>
@@ -1863,47 +1810,96 @@ async function doQuickScore(job) {
       {tab === "manual" && (
         <>
           <Card>
-            <div style={{ ...grid3, marginBottom: 10 }}>
-              <div><Label>Job Title</Label><input className="jsa-input" value={manualTitle} onChange={e => setManualTitle(e.target.value)} placeholder="Director of Product" /></div>
-              <div><Label>Company</Label><input className="jsa-input" value={manualCompany} onChange={e => setManualCompany(e.target.value)} placeholder="Google" /></div>
-              <div><Label>Location</Label><input className="jsa-input" value={manualLocation} onChange={e => setManualLocation(e.target.value)} placeholder="Remote / Seattle" /></div>
+            <div style={{ marginBottom: 10 }}>
+              <input className="jsa-input" value={manualUrl} onChange={e => setManualUrl(e.target.value)} placeholder="Job URL (https://…)" style={{ fontSize: 14 }} />
             </div>
-            <div style={{ marginBottom: 10 }}><Label>Job URL</Label><input className="jsa-input" value={manualUrl} onChange={e => setManualUrl(e.target.value)} placeholder="https://…" /></div>
+            <div style={{ ...grid3, marginBottom: 10 }}>
+              <input className="jsa-input" value={manualTitle} onChange={e => setManualTitle(e.target.value)} placeholder="Job title" />
+              <input className="jsa-input" value={manualCompany} onChange={e => setManualCompany(e.target.value)} placeholder="Company" />
+              <input className="jsa-input" value={manualLocation} onChange={e => setManualLocation(e.target.value)} placeholder="Location" />
+            </div>
             <div style={{ marginBottom: 12 }}>
-              <Label>Job Description *</Label>
               <textarea className="jsa-textarea" style={{ height: 220 }} value={manualJd} onChange={e => { setManualJd(e.target.value); setEvalResult(null); setManualSaved(false); setEvalError(""); }} placeholder="Paste the full job description here…" />
             </div>
-            <Btn primary onClick={doManualEvaluate} disabled={evalLoading}>{evalLoading ? "Analyzing…" : "Analyze Fit ↗"}</Btn>
+            <Btn primary onClick={doManualEvaluate} disabled={evalLoading} style={{ width: "100%" }}>{evalLoading ? "Analyzing…" : "Analyze Fit"}</Btn>
           </Card>
-          <EvalPanel title={manualTitle || undefined} subtitle={manualCompany || undefined} result={evalResult} jd_text={manualJd} loading={evalLoading} error={evalError} saving={saving} saved={manualSaved} onSave={doSave} />
+          <EvalPanel
+            title={manualTitle || undefined}
+            subtitle={manualCompany || undefined}
+            result={evalResult}
+            jd_text={manualJd}
+            loading={evalLoading}
+            error={evalError}
+            saving={saving}
+            saved={manualSaved}
+            onSave={doSave}
+            onTailor={evalResult ? () => {
+              setTailorMode("paste");
+              setTailorJd(manualJd);
+              setTailorJobTitle(manualTitle);
+              setTailorCompany(manualCompany);
+              setTailorResult(null);
+              setTailorError("");
+              setTab("tailor");
+            } : undefined}
+          />
         </>
       )}
 
-      {/* ════ SAVED ════ */}
+      {/* ════ PIPELINE ════ */}
       {tab === "saved" && (
         <>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <div style={{ fontFamily: T.fontMono, fontSize: 9, letterSpacing: "0.12em", color: T.textMuted }}>
-              {supabaseJobs.length - dismissedSaved.length} ROLES IN PIPELINE
-              {dismissedSaved.length > 0 && (
-                <button onClick={doRestoreDismissed} style={{ marginLeft: 10, fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
-                  show {dismissedSaved.length} hidden
-                </button>
-              )}
-              {selectedJobIds.size > 0 && (
-                <button onClick={() => setSelectedJobIds(new Set())} style={{ marginLeft: 10, fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
-                  clear {selectedJobIds.size} selected
-                </button>
-              )}
-            </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              <Btn small onClick={doRefreshSupabase} disabled={reEvalRunning}>↻ Refresh</Btn>
+          {/* HERO — top new scored job */}
+          {(() => {
+            const heroJob = [...supabaseJobs]
+              .filter(j => j.status === "new" && j.score != null && !dismissedSaved.includes(j.id))
+              .map(j => enrichJob({ ...j, jd_text: j.description || "" }))
+              .sort((a, b) => b.final_score - a.final_score)[0];
+            if (!heroJob) return null;
+            return (
+              <div style={{ marginBottom: 20, background: T.panel, border: `1px solid ${T.greenBorder}`, borderRadius: 10, padding: 16, opacity: heroJob.final_score < 60 ? 0.45 : 1 }}>
+                <div style={{ fontFamily: T.fontMono, fontSize: 9, color: T.green, letterSpacing: "0.1em", marginBottom: 10 }}>◆ TODAY'S TOP MATCH</div>
+                <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+                  <ScoreNum score={heroJob.final_score} hero />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: T.fontSans, fontWeight: 600, fontSize: 16, color: T.textPrimary, marginBottom: 2 }}>{heroJob.title || "Untitled"}</div>
+                    <div style={{ fontFamily: T.fontMono, fontSize: 10, color: T.textMuted, marginBottom: 8 }}>{[heroJob.company, heroJob.location].filter(Boolean).join(" · ")}</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}><RecBadge rec={heroJob.recommendation} /><PursuitBadge pursuit={heroJob._pursuit} compact /></div>
+                    {heroJob.verdict && <div style={{ fontFamily: T.fontSans, fontSize: 12, color: T.textMuted, lineHeight: 1.6, marginBottom: 10, borderLeft: `2px solid ${T.accentDim}`, paddingLeft: 10 }}>{heroJob.verdict.slice(0, 180)}{heroJob.verdict.length > 180 ? "…" : ""}</div>}
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <Btn small primary onClick={() => { setTab("tailor"); setTailorMode("saved"); setSelectedSavedJob(heroJob); setTailorResult(null); setTailorError(""); }}>Tailor Resume →</Btn>
+                      <Btn small onClick={() => { setManualTitle(heroJob.title || ""); setManualCompany(heroJob.company || ""); setManualLocation(heroJob.location || ""); setManualUrl(heroJob.url || ""); setManualJd(""); setManualJobId(heroJob.id || null); setEvalResult(null); setEvalError(""); setManualSaved(false); setTab("manual"); }}>Re-evaluate</Btn>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* FILTER BAR */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 12, padding: "8px 10px", background: T.surface, border: `1px solid ${T.borderFaint}`, borderRadius: 6 }}>
+            {[
+              { label: "All", status: "all" }, { label: "New", status: "new" },
+              { label: "Reviewing", status: "reviewing" }, { label: "Applied", status: "applied" },
+              { label: "Interviewing", status: "interviewing" },
+            ].map(({ label, status }) => {
+              const active = savedFilter.status === status;
+              return <button key={status} onClick={() => setSavedFilter(f => ({ ...f, status }))} style={{ fontFamily: T.fontSans, fontSize: 12, fontWeight: active ? 500 : 400, padding: "3px 10px", borderRadius: 4, cursor: "pointer", border: `1px solid ${active ? T.accentDim : T.border}`, background: active ? T.greenBg : "transparent", color: active ? T.green : T.textMuted, transition: "all 0.12s" }}>{label}</button>;
+            })}
+            <div style={{ width: 1, height: 16, background: T.border, margin: "0 2px" }} />
+            {[{ label: "Priority", value: "PRIORITY" }, { label: "Strong", value: "STRONG" }, { label: "Unscored", value: "unscored" }].map(({ label, value }) => {
+              const active = savedFilter.pursuit === value;
+              return <button key={value} onClick={() => setSavedFilter(f => ({ ...f, pursuit: active ? "all" : value }))} style={{ fontFamily: T.fontSans, fontSize: 12, fontWeight: active ? 500 : 400, padding: "3px 10px", borderRadius: 4, cursor: "pointer", border: `1px solid ${active ? T.border : T.border}`, background: active ? T.surface : "transparent", color: active ? T.textSecondary : T.textMuted, transition: "all 0.12s" }}>{label}</button>;
+            })}
+            <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+              <Btn small onClick={doRefreshSupabase} disabled={reEvalRunning}>↻</Btn>
               <Btn small primary onClick={doReEvaluateAll} disabled={reEvalRunning || !supabaseJobs.length}>
-                {reEvalRunning ? "Re-scoring…" : selectedJobIds.size > 0 ? `⟳ Re-score Selected (${selectedJobIds.size})` : "⟳ Re-score All"}
+                {reEvalRunning ? "Scoring…" : selectedJobIds.size > 0 ? `Re-score (${selectedJobIds.size})` : "Re-score all"}
               </Btn>
             </div>
           </div>
-          {/* Re-evaluate progress */}
+
+          {/* RE-EVAL PROGRESS */}
           {(reEvalRunning || reEvalProgress.label) && (
             <div style={{ marginBottom: 12, padding: "10px 14px", background: T.blueBg, border: `1px solid ${T.blueBorder}`, borderRadius: 7 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: reEvalRunning ? 8 : 0 }}>
@@ -1916,7 +1912,6 @@ async function doQuickScore(job) {
               </div>
               {reEvalRunning && (
                 <>
-                  {/* Progress bar */}
                   <div style={{ height: 3, background: T.border, borderRadius: 2, overflow: "hidden", marginBottom: 6 }}>
                     <div style={{ height: "100%", width: `${(reEvalProgress.current / reEvalProgress.total) * 100}%`, background: T.blue, borderRadius: 2, transition: "width 0.4s ease" }} />
                   </div>
@@ -1929,39 +1924,10 @@ async function doQuickScore(job) {
           {supabaseLoading && <div className="pulse" style={{ textAlign: "center", padding: "40px 0", fontFamily: T.fontMono, fontSize: 10, letterSpacing: "0.1em", color: T.textMuted }}>LOADING…</div>}
           {supabaseError && <ErrBox msg={supabaseError} />}
           {!supabaseLoading && supabaseJobs.length === 0 && !supabaseError && <div style={{ textAlign: "center", padding: "48px 0", fontFamily: T.fontMono, fontSize: 10, letterSpacing: "0.1em", color: T.textMuted }}>NO ROLES IN PIPELINE YET</div>}
-
-          {supabaseJobs.length > 0 && !supabaseLoading && (
-            <FilterBar
-              filter={savedFilter}
-              onChange={setSavedFilter}
-              placeholder="Filter by title or company…"
-              pills={[
-                { key: "status", label: "New", value: "new" },
-                { key: "status", label: "Reviewed", value: "reviewed" },
-                { key: "status", label: "Applied", value: "applied" },
-                { key: "pursuit", label: "Priority", value: "PRIORITY" },
-                { key: "pursuit", label: "Strong", value: "STRONG" },
-                { key: "pursuit", label: "Unscored", value: "unscored" },
-              ]}
-              count={[...supabaseJobs].filter(j => !dismissedSaved.includes(j.id)).filter(j => {
-                const ej = enrichJob({ ...j, jd_text: j.description || "" });
-                const q = (savedFilter.text || "").toLowerCase();
-                if (q && !j.title?.toLowerCase().includes(q) && !j.company?.toLowerCase().includes(q)) return false;
-                if (savedFilter.status !== "all" && j.status !== savedFilter.status) return false;
-                if (savedFilter.pursuit !== "all") {
-                  if (savedFilter.pursuit === "unscored") return j.score == null;
-                  if (ej._pursuit !== savedFilter.pursuit) return false;
-                }
-                return true;
-              }).length}
-              total={supabaseJobs.filter(j => !dismissedSaved.includes(j.id)).length}
-            />
-          )}
+          {dismissedSaved.length > 0 && <button onClick={doRestoreDismissed} style={{ marginBottom: 8, fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>show {dismissedSaved.length} hidden</button>}
 
           {[...supabaseJobs].filter(j => !dismissedSaved.includes(j.id)).filter(j => {
             const ej = enrichJob({ ...j, jd_text: j.description || "" });
-            const q = (savedFilter.text || "").toLowerCase();
-            if (q && !j.title?.toLowerCase().includes(q) && !j.company?.toLowerCase().includes(q)) return false;
             if (savedFilter.status !== "all" && j.status !== savedFilter.status) return false;
             if (savedFilter.pursuit !== "all") {
               if (savedFilter.pursuit === "unscored") return j.score == null;
@@ -1969,26 +1935,21 @@ async function doQuickScore(job) {
             }
             return true;
           }).map(j => enrichJob({ ...j, jd_text: j.description || "" })).sort((a, b) => {
-            // Null-score jobs (unscored) sink to bottom
             if (a.score == null && b.score == null) return 0;
             if (a.score == null) return 1;
             if (b.score == null) return -1;
             return b.final_score - a.final_score;
           }).map(job => (
-            <div key={job.id} className="jsa-card-hover" style={{ background: T.panel, border: `1px solid ${job.score == null ? T.amberBorder : T.borderFaint}`, borderRadius: 8, padding: "12px 14px", marginBottom: 8, transition: "background 0.15s, border-color 0.15s" }}>
-              <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                {/* Selection checkbox */}
-              <div onClick={e => { e.stopPropagation(); setSelectedJobIds(prev => { const next = new Set(prev); next.has(job.id) ? next.delete(job.id) : next.add(job.id); return next; }); }}
-                style={{ width: 16, height: 16, flexShrink: 0, marginTop: 2, border: `1px solid ${selectedJobIds.has(job.id) ? T.accentDim : T.border}`, borderRadius: 3, background: selectedJobIds.has(job.id) ? T.greenBg : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {selectedJobIds.has(job.id) && <span style={{ fontFamily: T.fontMono, fontSize: 9, color: T.green }}>✓</span>}
-              </div>
-              {/* Score ring — or UNSCORED badge if no score yet */}
+            <div key={job.id} className="jsa-card-hover" style={{ background: T.panel, border: `1px solid ${job.score == null ? T.amberBorder : T.borderFaint}`, borderRadius: 8, padding: "10px 12px", marginBottom: 6, transition: "background 0.15s, border-color 0.15s", opacity: job.score != null && job.final_score < 60 ? 0.45 : 1 }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <div onClick={e => { e.stopPropagation(); setSelectedJobIds(prev => { const next = new Set(prev); next.has(job.id) ? next.delete(job.id) : next.add(job.id); return next; }); }}
+                  style={{ width: 14, height: 14, flexShrink: 0, marginTop: 3, border: `1px solid ${selectedJobIds.has(job.id) ? T.accentDim : T.border}`, borderRadius: 3, background: selectedJobIds.has(job.id) ? T.greenBg : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {selectedJobIds.has(job.id) && <span style={{ fontFamily: T.fontMono, fontSize: 8, color: T.green }}>✓</span>}
+                </div>
                 {job.score == null ? (
-                  <div style={{ width: 52, height: 52, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${T.amberBorder}`, borderRadius: 6, background: T.amberBg }}>
-                    <span style={{ fontFamily: T.fontMono, fontSize: 8, fontWeight: 600, color: T.amber, letterSpacing: "0.06em", textAlign: "center" }}>UN{"\n"}SCORED</span>
-                  </div>
+                  <span style={{ fontFamily: T.fontMono, fontSize: 11, fontWeight: 600, color: T.amber, flexShrink: 0, marginTop: 1 }}>—</span>
                 ) : (
-                  <ScoreRing score={job.final_score} size={52} />
+                  <ScoreNum score={job.final_score} />
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: T.fontSans, fontWeight: 500, fontSize: 13, color: T.textPrimary, marginBottom: 2 }}>{job.title || "Untitled"}</div>
@@ -2081,7 +2042,6 @@ async function doQuickScore(job) {
             <div style={{ fontFamily: T.fontSans, fontSize: 12, color: T.textMuted, lineHeight: 1.7, marginBottom: 14 }}>Claude positions you as the top-tier candidate — rewriting bullets for impact, upgrading language, surfacing strategic gaps.</div>
             {!masterResume.trim() && <div style={{ marginBottom: 14, padding: "8px 12px", background: T.amberBg, border: `1px solid ${T.amberBorder}`, borderRadius: 6, fontFamily: T.fontMono, fontSize: 9, color: T.amber, letterSpacing: "0.08em" }}>⚠ ADD MASTER RESUME IN SETTINGS BEFORE TAILORING</div>}
             <div style={{ marginBottom: 14 }}>
-              <Label>Job Source</Label>
               <div style={{ display: "flex", gap: 6 }}>
                 {[{ key: "paste", label: "PASTE JD" }, { key: "saved", label: "FROM SAVED" }].map(m => (
                   <button key={m.key} className="jsa-toggle" onClick={() => { setTailorMode(m.key); setTailorResult(null); setTailorError(""); }}
@@ -2094,15 +2054,14 @@ async function doQuickScore(job) {
             {tailorMode === "paste" && (
               <>
                 <div style={{ ...grid2, marginBottom: 10 }}>
-                  <div><Label>Job Title</Label><input className="jsa-input" value={tailorJobTitle} onChange={e => setTailorJobTitle(e.target.value)} placeholder="Group PM, Observability" /></div>
-                  <div><Label>Company</Label><input className="jsa-input" value={tailorCompany} onChange={e => setTailorCompany(e.target.value)} placeholder="Google" /></div>
+                  <div><input className="jsa-input" value={tailorJobTitle} onChange={e => setTailorJobTitle(e.target.value)} placeholder="Job title" /></div>
+                  <div><input className="jsa-input" value={tailorCompany} onChange={e => setTailorCompany(e.target.value)} placeholder="Company" /></div>
                 </div>
-                <div style={{ marginBottom: 14 }}><Label>Job Description *</Label><textarea className="jsa-textarea" style={{ height: 180 }} value={tailorJd} onChange={e => { setTailorJd(e.target.value); setTailorResult(null); setTailorError(""); }} placeholder="Paste the full job description here…" /></div>
+                <div style={{ marginBottom: 14 }}><textarea className="jsa-textarea" style={{ height: 180 }} value={tailorJd} onChange={e => { setTailorJd(e.target.value); setTailorResult(null); setTailorError(""); }} placeholder="Paste the full job description here…" /></div>
               </>
             )}
             {tailorMode === "saved" && (
               <div style={{ marginBottom: 14 }}>
-                <Label>Select Role</Label>
                 {supabaseJobs.length === 0
                   ? <div style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, padding: "12px 0", letterSpacing: "0.08em" }}>NO SAVED ROLES YET</div>
                   : <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 240, overflowY: "auto", marginTop: 6 }}>
