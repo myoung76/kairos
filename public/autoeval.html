@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JSA Auto-Evaluator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0e0f11; color: #e8eaf0; font-family: 'IBM Plex Mono', monospace; padding: 28px; min-height: 100vh; }
+    h1 { font-size: 14px; font-weight: 600; letter-spacing: 0.12em; color: #2ecc71; margin-bottom: 4px; }
+    .sub { font-size: 11px; color: #7a8090; margin-bottom: 24px; font-family: 'IBM Plex Sans', sans-serif; }
+    .progress { background: #141518; border: 1px solid #2a2d35; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .progress-bar-wrap { height: 3px; background: #2a2d35; border-radius: 2px; margin: 10px 0 6px; overflow: hidden; }
+    .progress-bar { height: 100%; background: #2ecc71; border-radius: 2px; transition: width 0.4s ease; }
+    .log { background: #141518; border: 1px solid #1f2228; border-radius: 6px; padding: 12px; max-height: 480px; overflow-y: auto; font-size: 11px; line-height: 1.8; }
+    .log-entry { display: flex; gap: 10px; padding: 2px 0; border-bottom: 1px solid #1f2228; }
+    .log-entry:last-child { border-bottom: none; }
+    .log-time { color: #7a8090; flex-shrink: 0; }
+    .log-msg { flex: 1; }
+    .log-msg.ok { color: #2ecc71; }
+    .log-msg.err { color: #e74c3c; }
+    .log-msg.info { color: #b0b8cc; }
+    .log-msg.warn { color: #f39c12; }
+    .stat { display: inline-flex; gap: 6px; align-items: center; font-size: 10px; letter-spacing: 0.08em; }
+    .stat-val { font-weight: 600; color: #2ecc71; }
+    .done-msg { margin-top: 16px; padding: 12px 16px; background: #0d1f15; border: 1px solid #1a4a2e; border-radius: 6px; font-size: 12px; color: #2ecc71; }
+    .error-msg { margin-top: 16px; padding: 12px 16px; background: #1f0d0b; border: 1px solid #4a1a15; border-radius: 6px; font-size: 12px; color: #e74c3c; }
+    button { font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; padding: 6px 14px; border-radius: 4px; border: 1px solid #1a7a45; background: #0d1f15; color: #2ecc71; cursor: pointer; margin-top: 12px; }
+    button:hover { opacity: 0.85; }
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400&display=swap');
+  </style>
+</head>
+<body>
+
+<h1>◆ JSA AUTO-EVALUATOR</h1>
+<div class="sub">Scraping LinkedIn JDs and running Claude evaluations automatically</div>
+
+<div class="progress" id="progressBox">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+    <span style="font-size:10px;letter-spacing:0.1em" id="statusLabel">INITIALIZING…</span>
+    <div style="display:flex;gap:16px">
+      <span class="stat">✓ Done <span class="stat-val" id="doneCount">0</span></span>
+      <span class="stat">✗ Failed <span class="stat-val" id="failCount" style="color:#e74c3c">0</span></span>
+      <span class="stat">Total <span class="stat-val" id="totalCount">0</span></span>
+    </div>
+  </div>
+  <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+  <div style="font-size:10px;color:#7a8090" id="currentJob">Loading queue…</div>
+</div>
+
+<div class="log" id="log"></div>
+<div id="doneBox"></div>
+
+<script>
+const ANTHROPIC_KEY = localStorage.getItem('jsa_anthropic_key') || '';
+const PROFILE = localStorage.getItem('jsa_profile') || `VP / Director-level Product Leader — Observability, Infrastructure, AI Platform. Target roles: Director/Sr Director/VP/Staff PM/Group PM. Experience: VMware Wavefront (telemetry, metrics/logs/traces), Puppet (infra automation 10M+ endpoints, Fortune 100), Domotz (VP Product, Bessemer-backed, MCP agentic workflows, 500K+ endpoints), HPE (cloud monitoring). Strengths: distributed telemetry, AI/ML platform, agentic workflows, MCP architecture, API-first, enterprise SaaS, PLG, Kubernetes-native, high-cardinality data.`;
+
+const FIT_PROMPT = `You are a senior career coach specializing in Product Management leadership roles. Analyze the fit between a job description and a candidate profile. Return ONLY raw JSON — no markdown fences, no explanation.
+
+Schema: {"overall_score":0,"confidence":0,"skills_match":0,"experience_match":0,"culture_match":0,"compensation_score":0,"work_life_balance_score":0,"growth_score":0,"location_score":0,"company_score":0,"strengths":[],"gaps":[],"quick_wins":[],"missing_keywords":[],"strategic_gaps":[],"verdict":"","recommendation":"apply|apply_with_note|stretch|skip","score_explanation":{"key_factor":"","strengths":[],"weaknesses":[]},"top_candidate_signal":{"level":"HIGH|MEDIUM|LOW","reason":""}}
+
+STRICT RULES:
+- Not clearly Manager/Director/VP/Staff/Group PM level → below 60
+- Outside observability/platform/infrastructure/data/AI/ML/developer tools → subtract 15+
+- Experience mismatch → cap at 65. Vague/minimal JD → confidence below 50, score below 60
+- Strong fit signals (score 75+): distributed telemetry, LLM/AI observability, ML pipeline monitoring, agentic workflows, MCP, Kubernetes-native platforms, high-cardinality data, SLO monitoring, automated remediation, API-first platforms, cloud-scale SaaS
+- Good fit signals (score 65-75): data platforms, developer tools, infrastructure automation, cloud-native products, PLG SaaS, enterprise B2B platform PM
+- Candidate has 10+ years, VP/Director-level, Seattle-based — do not penalize for "overqualified" at Director level
+- LOCATION: Remote=95-100, Seattle/WA=90-95, Hybrid Seattle=80-85, Hybrid elsewhere=60-75, In-office non-Seattle=40-60, Relocation required=10-30
+- work_life_balance_score: remote-first=85-100, hybrid flexible=70-84, high-growth startup=50-69, on-call/always-on=30-49
+- Most roles score 50-75. Only genuinely strong matches exceed 75.`;
+
+let done = 0, failed = 0, total = 0;
+
+function log(msg, type = 'info') {
+  const el = document.getElementById('log');
+  const now = new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-time">${now}</span><span class="log-msg ${type}">${msg}</span>`;
+  el.appendChild(entry);
+  el.scrollTop = el.scrollHeight;
+}
+
+function updateProgress(current, label) {
+  document.getElementById('doneCount').textContent = done;
+  document.getElementById('failCount').textContent = failed;
+  document.getElementById('totalCount').textContent = total;
+  document.getElementById('progressBar').style.width = total > 0 ? `${Math.round((done + failed) / total * 100)}%` : '0%';
+  document.getElementById('currentJob').textContent = label || '';
+  document.getElementById('statusLabel').textContent = (done + failed) >= total && total > 0 ? 'COMPLETE' : `PROCESSING ${current || 0} / ${total}`;
+}
+
+async function scrapeLinkedIn(url) {
+  try {
+    // Extract the job path and fetch via local proxy (bypasses CORS)
+    const jobPath = new URL(url).pathname;
+    const res = await fetch(`/linkedin-proxy${jobPath}`, {
+      headers: { 'Accept': 'text/html' }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const html = await res.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+
+    const selectors = [
+      '.jobs-description__content',
+      '.jobs-description-content__text',
+      '.description__text',
+      '.jobs-box__html-content',
+      '[class*="jobs-description"]',
+      'article',
+    ];
+    for (const sel of selectors) {
+      const el = doc.querySelector(sel);
+      if (el?.textContent?.trim().length > 300)
+        return el.textContent.trim().slice(0, 8000);
+    }
+    doc.querySelectorAll('script,style,nav,header,footer').forEach(e => e.remove());
+    const body = doc.body?.textContent?.trim() || '';
+    if (body.length > 300) return body.slice(0, 8000);
+    throw new Error('No JD content found');
+  } catch (err) {
+    throw new Error(`Scrape failed: ${err.message}`);
+  }
+}
+async function evaluateJob(job, jdText) {
+  if (!ANTHROPIC_KEY) throw new Error('No Anthropic API key in localStorage');
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      system: FIT_PROMPT,
+      messages: [{ role: 'user', content: `JOB DESCRIPTION:\n${jdText}\n\nLOCATION: ${job.location || 'Not specified'}\n\nCANDIDATE PROFILE:\n${PROFILE}` }],
+    }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message);
+  const raw = data.content.map(b => b.text || '').join('').trim()
+    .replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/, '').trim();
+  return JSON.parse(raw);
+}
+
+function writeResult(url, result, jdText, status) {
+  // Write to localStorage so the app tab can poll and pick up results
+  const key = 'jsa_autoeval_results';
+  const existing = JSON.parse(localStorage.getItem(key) || '{}');
+  existing[url] = { result, jd: jdText, status, ts: Date.now() };
+  localStorage.setItem(key, JSON.stringify(existing));
+}
+
+function writeError(url, msg) {
+  const key = 'jsa_autoeval_results';
+  const existing = JSON.parse(localStorage.getItem(key) || '{}');
+  existing[url] = { status: 'error', error: msg, ts: Date.now() };
+  localStorage.setItem(key, JSON.stringify(existing));
+}
+
+async function runQueue() {
+  if (!ANTHROPIC_KEY) {
+    document.getElementById('doneBox').innerHTML = '<div class="error-msg">⚠ No Anthropic API key found. Make sure your app is set up with a key in Settings, then reload this page.</div>';
+    log('No Anthropic API key found in localStorage', 'err');
+    return;
+  }
+
+  // Read queue from localStorage (written by the app)
+  const queue = JSON.parse(localStorage.getItem('jsa_autoeval_queue') || '[]');
+  if (!queue.length) {
+    document.getElementById('doneBox').innerHTML = '<div class="error-msg">⚠ No jobs in queue. Go back to the app and click Auto-Evaluate All.</div>';
+    log('Queue is empty — nothing to process', 'warn');
+    document.getElementById('statusLabel').textContent = 'NO JOBS IN QUEUE';
+    return;
+  }
+
+  total = queue.length;
+  updateProgress(0, 'Starting…');
+  log(`Queue loaded: ${total} jobs to evaluate`, 'info');
+
+  // Clear previous results for these URLs
+  const results = JSON.parse(localStorage.getItem('jsa_autoeval_results') || '{}');
+  queue.forEach(j => delete results[j.url]);
+  localStorage.setItem('jsa_autoeval_results', JSON.stringify(results));
+
+  for (let i = 0; i < queue.length; i++) {
+    const job = queue[i];
+    const label = `${job.title} · ${job.company}`;
+    updateProgress(i + 1, `${i + 1}/${total} — ${label}`);
+    log(`→ Scraping: ${label}`, 'info');
+
+    let jdText = '';
+    try {
+      jdText = await scrapeLinkedIn(job.url);
+      log(`  ✓ JD scraped (${jdText.length} chars)`, 'ok');
+    } catch (err) {
+      log(`  ✗ Scrape failed: ${err.message}`, 'err');
+      writeError(job.url, err.message);
+      failed++;
+      updateProgress(i + 1, `${i + 1}/${total} — ${label}`);
+      continue;
+    }
+
+    log(`  ⟳ Evaluating with Claude…`, 'info');
+    try {
+      const result = await evaluateJob(job, jdText);
+      writeResult(job.url, result, jdText, 'done');
+      done++;
+      const rec = result.recommendation || '?';
+      const score = result.overall_score || '?';
+      log(`  ✓ Score: ${score} | Rec: ${rec} | ${result.verdict?.slice(0, 60)}…`, 'ok');
+    } catch (err) {
+      log(`  ✗ Eval failed: ${err.message}`, 'err');
+      writeError(job.url, err.message);
+      failed++;
+    }
+
+    updateProgress(i + 1, `${i + 1}/${total} — ${label}`);
+
+    // Small delay between jobs to avoid rate limiting
+    if (i < queue.length - 1) {
+      log(`  ⏱ Waiting 1.5s before next job…`, 'info');
+      await new Promise(r => setTimeout(r, 1500));
+    }
+  }
+
+  // Mark queue as complete
+  localStorage.setItem('jsa_autoeval_queue_status', 'complete');
+  document.getElementById('statusLabel').textContent = 'COMPLETE ✓';
+  document.getElementById('doneBox').innerHTML = `
+    <div class="done-msg">
+      ✓ Done — ${done} evaluated, ${failed} failed. Switch back to the app tab to review scores and save jobs.
+    </div>`;
+  log(`━━━ Complete: ${done} done, ${failed} failed ━━━`, 'ok');
+}
+
+// Start automatically
+runQueue();
+</script>
+</body>
+</html>
