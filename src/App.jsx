@@ -20,7 +20,7 @@ if (typeof document !== "undefined" && !document.getElementById("jsa-fonts")) {
 // ─────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
 // ─────────────────────────────────────────────────────────────────
-const T = {
+const DARK_TOKENS = {
   bg: "#0e0f11", surface: "#141518", panel: "#1a1c21", panelHover: "#1f2228",
   border: "#2a2d35", borderFaint: "#1f2228",
   textPrimary: "#e8eaf0", textSecondary: "#b0b8cc", textMuted: "#7a8090", textInverse: "#0e0f11",
@@ -34,40 +34,63 @@ const T = {
   fontSerif: "'IBM Plex Serif', serif",
 };
 
+const LIGHT_TOKENS = {
+  bg: "#f8f9fb", surface: "#ffffff", panel: "#f0f2f5", panelHover: "#e8ebf0",
+  border: "#d4d8e2", borderFaint: "#e4e7ee",
+  textPrimary: "#1a1d26", textSecondary: "#4a5165", textMuted: "#8a92a6", textInverse: "#ffffff",
+  green: "#16a34a", greenBg: "#f0fdf4", greenBorder: "#bbf7d0",
+  amber: "#b45309", amberBg: "#fffbeb", amberBorder: "#fde68a",
+  red: "#dc2626", redBg: "#fef2f2", redBorder: "#fecaca",
+  blue: "#2563eb", blueBg: "#eff6ff", blueBorder: "#bfdbfe",
+  accent: "#16a34a", accentDim: "#15803d",
+  fontSans: "'IBM Plex Sans', system-ui, sans-serif",
+  fontMono: "'IBM Plex Mono', monospace",
+  fontSerif: "'IBM Plex Serif', serif",
+};
+
+const T = { ...LIGHT_TOKENS };
+
 // ─────────────────────────────────────────────────────────────────
 // GLOBAL STYLES
 // ─────────────────────────────────────────────────────────────────
-if (typeof document !== "undefined" && !document.getElementById("jsa-global-styles")) {
-  const style = document.createElement("style");
-  style.id = "jsa-global-styles";
-  style.textContent = `
+function buildGlobalStyles(tokens) {
+  return `
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body, #root { background: ${T.bg}; min-height: 100vh; }
-    body { font-family: ${T.fontSans}; color: ${T.textPrimary}; -webkit-font-smoothing: antialiased; }
+    html, body, #root { background: ${tokens.bg}; min-height: 100vh; }
+    body { font-family: ${tokens.fontSans}; color: ${tokens.textPrimary}; -webkit-font-smoothing: antialiased; }
     ::-webkit-scrollbar { width: 4px; }
-    ::-webkit-scrollbar-track { background: ${T.bg}; }
-    ::-webkit-scrollbar-thumb { background: ${T.border}; border-radius: 2px; }
-    .jsa-input { background: ${T.surface}; border: 1px solid ${T.border}; color: ${T.textPrimary}; font-family: ${T.fontSans}; font-size: 13px; padding: 8px 11px; border-radius: 6px; width: 100%; outline: none; transition: border-color 0.15s; }
-    .jsa-input:focus { border-color: ${T.accentDim}; }
-    .jsa-input::placeholder { color: ${T.textMuted}; }
-    .jsa-textarea { background: ${T.surface}; border: 1px solid ${T.border}; color: ${T.textPrimary}; font-family: ${T.fontSans}; font-size: 12px; padding: 10px 12px; border-radius: 6px; width: 100%; outline: none; resize: vertical; line-height: 1.6; transition: border-color 0.15s; }
-    .jsa-textarea:focus { border-color: ${T.accentDim}; }
-    .jsa-textarea::placeholder { color: ${T.textMuted}; }
+    ::-webkit-scrollbar-track { background: ${tokens.bg}; }
+    ::-webkit-scrollbar-thumb { background: ${tokens.border}; border-radius: 2px; }
+    .jsa-input { background: ${tokens.surface}; border: 1px solid ${tokens.border}; color: ${tokens.textPrimary}; font-family: ${tokens.fontSans}; font-size: 13px; padding: 8px 11px; border-radius: 6px; width: 100%; outline: none; transition: border-color 0.15s; }
+    .jsa-input:focus { border-color: ${tokens.accentDim}; }
+    .jsa-input::placeholder { color: ${tokens.textMuted}; }
+    .jsa-textarea { background: ${tokens.surface}; border: 1px solid ${tokens.border}; color: ${tokens.textPrimary}; font-family: ${tokens.fontSans}; font-size: 12px; padding: 10px 12px; border-radius: 6px; width: 100%; outline: none; resize: vertical; line-height: 1.6; transition: border-color 0.15s; }
+    .jsa-textarea:focus { border-color: ${tokens.accentDim}; }
+    .jsa-textarea::placeholder { color: ${tokens.textMuted}; }
     .score-fill { transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
-    .jsa-tab:hover { background: ${T.panelHover} !important; }
-    .jsa-card-hover:hover { border-color: ${T.border} !important; background: ${T.panelHover} !important; }
+    .jsa-tab:hover { background: ${tokens.panelHover} !important; }
+    .jsa-card-hover:hover { border-color: ${tokens.border} !important; background: ${tokens.panelHover} !important; }
     .jsa-btn:hover { opacity: 0.85; }
-    .jsa-btn-ghost:hover { background: ${T.panelHover} !important; border-color: ${T.border} !important; }
-    .jsa-toggle:hover { background: ${T.panelHover} !important; }
+    .jsa-btn-ghost:hover { background: ${tokens.panelHover} !important; border-color: ${tokens.border} !important; }
+    .jsa-toggle:hover { background: ${tokens.panelHover} !important; }
     details summary { cursor: pointer; list-style: none; }
     details summary::-webkit-details-marker { display: none; }
-    .mono { font-family: ${T.fontMono}; }
+    .mono { font-family: ${tokens.fontMono}; }
     @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
     .fade-up { animation: fadeUp 0.25s ease forwards; }
     @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
     .pulse { animation: pulse 1.4s ease-in-out infinite; }
   `;
-  document.head.appendChild(style);
+}
+
+if (typeof document !== "undefined") {
+  let styleEl = document.getElementById("jsa-global-styles");
+  if (!styleEl) {
+    styleEl = document.createElement("style");
+    styleEl.id = "jsa-global-styles";
+    document.head.appendChild(styleEl);
+  }
+  styleEl.textContent = buildGlobalStyles(T);
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -950,10 +973,25 @@ function TailoredResumePanel({ result, onDownload, downloading }) {
 // ═════════════════════════════════════════════════════════════════
 export default function JobSearchAgent() {
 
+  const [theme, setTheme] = useState(() => localStorage.getItem("jsa_theme") || "light");
+
+  // Update T tokens and global styles whenever theme changes
+  Object.assign(T, theme === "dark" ? DARK_TOKENS : LIGHT_TOKENS);
+  if (typeof document !== "undefined") {
+    const styleEl = document.getElementById("jsa-global-styles");
+    if (styleEl) styleEl.textContent = buildGlobalStyles(T);
+  }
+
+  const toggleTheme = () => {
+    const next = theme === "light" ? "dark" : "light";
+    localStorage.setItem("jsa_theme", next);
+    setTheme(next);
+  };
+
   const [anthropicKey,  setAnthropicKey]  = useState(() => localStorage.getItem("jsa_anthropic_key") || "");
   const [profile,       setProfile]       = useState(DEFAULT_PROFILE);
   const [masterResume,  setMasterResume]  = useState(() => localStorage.getItem("jsa_master_resume") || "");
-  const [settingsOpen,  setSettingsOpen]  = useState(true);
+  const [settingsOpen,  setSettingsOpen]  = useState(false);
   const [tab, setTab] = useState("discover");
 
   // Discover
@@ -1152,87 +1190,23 @@ export default function JobSearchAgent() {
     return jobs;
   }
 
-  async function doFetchEmailAlerts() {
-    if (!anthropicKey) { setEmailError("Add your Anthropic API key in Settings first."); return; }
-    setEmailLoading(true); setEmailError("");
-    setEmailJobs([]); localStorage.removeItem("jsa_email_jobs"); localStorage.removeItem("jsa_email_fetched");
-
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": anthropicKey.trim(),
-          "anthropic-version": "2023-06-01",
-          "anthropic-beta": "mcp-client-2025-11-20",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 4000,
-          mcp_servers: [{ type: "url", url: "https://gmailmcp.googleapis.com/mcp/v1", name: "gmail" }],
-          tools: [{ type: "mcp_toolset", mcp_server_name: "gmail" }],
-          system: `You are a job search assistant. Read the user's LinkedIn job alert emails and extract job listings. Return ONLY a raw JSON array — no markdown, no explanation, no extra text. Each item: {"title": string, "company": string, "location": string, "url": string}. Clean URLs to base linkedin.com/jobs/view/JOBID/ format. Deduplicate by job ID. Skip entries missing title, company, or valid LinkedIn jobs URL.`,
-          messages: [{ role: "user", content: "Search my Gmail for LinkedIn job alert emails from the last 14 days (from:jobalerts-noreply@linkedin.com). Read the full content of up to 15 of the most recent threads. Extract every unique job listing and return them as a JSON array." }],
-        }),
-      });
-
-      if (!res.ok) {
-  const errBody = await res.json().catch(() => ({}));
-  throw new Error(`API error: HTTP ${res.status} — ${errBody?.error?.message || JSON.stringify(errBody)}`);
-}
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message);
-
-      const raw = data.content
-        .filter(b => b.type === "text")
-        .map(b => b.text)
-        .join("")
-        .trim()
-        .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/, "").trim();
-
-      let jobs = [];
-      try {
-        const parsed = JSON.parse(raw);
-        jobs = Array.isArray(parsed) ? parsed : [];
-      } catch {
-        const match = raw.match(/\[[\s\S]*\]/);
-        if (match) { try { jobs = JSON.parse(match[0]); } catch { jobs = []; } }
-      }
-
-      jobs = jobs.filter(j => j.title && j.company && j.url && j.url.includes("linkedin.com"));
-      jobs = jobs.map(j => {
-        try {
-          const m = j.url.match(/\/jobs\/view\/(\d+)/);
-          if (m) return { ...j, url: `https://www.linkedin.com/jobs/view/${m[1]}/` };
-        } catch {}
-        return j;
-      });
-
-      const seen = new Set();
-      jobs = jobs.filter(j => { if (seen.has(j.url)) return false; seen.add(j.url); return true; });
-
-      if (jobs.length === 0) {
-        setEmailError("No job listings found in your LinkedIn alert emails from the last 14 days.");
-        setEmailLoading(false);
-        return;
-      }
-
-      setEmailJobs(prev => {
-        const existingUrls = new Set(prev.map(j => j.url));
-        const merged = [...prev, ...jobs.filter(j => !existingUrls.has(j.url)).map(j => ({ ...j, source: "linkedin_alert" }))];
-        localStorage.setItem("jsa_email_jobs", JSON.stringify(merged));
-        return merged;
-      });
-      const now = new Date();
-      setEmailLastFetched(now);
-      localStorage.setItem("jsa_email_fetched", now.toISOString());
-
-    } catch (err) {
-      setEmailError(`Failed to fetch emails: ${err.message}`);
+  function doPasteParseJobs() {
+    setEmailError("");
+    const jobs = parseLinkedInAlertBody(emailPaste);
+    if (jobs.length === 0) {
+      setEmailError("No jobs found — make sure you pasted the full plain-text body of a LinkedIn alert email.");
+      return;
     }
-
-    setEmailLoading(false);
+    setEmailJobs(prev => {
+      const existingUrls = new Set(prev.map(j => j.url));
+      const merged = [...prev, ...jobs.filter(j => !existingUrls.has(j.url))];
+      localStorage.setItem("jsa_email_jobs", JSON.stringify(merged));
+      return merged;
+    });
+    const now = new Date();
+    setEmailLastFetched(now);
+    localStorage.setItem("jsa_email_fetched", now.toISOString());
+    setEmailPaste("");
   }
 
   function doClearEmailJobs() {
@@ -1603,9 +1577,14 @@ async function doQuickScore(job) {
 
       {/* SETTINGS */}
       <div style={{ marginBottom: 20, background: T.panel, border: `1px solid ${T.borderFaint}`, borderRadius: 8 }}>
-        <div onClick={() => setSettingsOpen(o => !o)} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px", cursor: "pointer" }}>
-          <span style={{ fontFamily: T.fontMono, fontSize: 9, fontWeight: 600, letterSpacing: "0.12em", color: T.textMuted }}>⚙ SETTINGS</span>
-          <span style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted }}>{settingsOpen ? "▲" : "▼"}</span>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 14px" }}>
+          <div onClick={() => setSettingsOpen(o => !o)} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", flex: 1 }}>
+            <span style={{ fontFamily: T.fontMono, fontSize: 9, fontWeight: 600, letterSpacing: "0.12em", color: T.textMuted }}>⚙ SETTINGS</span>
+            <span style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted }}>{settingsOpen ? "▲" : "▼"}</span>
+          </div>
+          <button onClick={toggleTheme} style={{ fontFamily: T.fontMono, fontSize: 9, fontWeight: 600, letterSpacing: "0.08em", padding: "3px 9px", borderRadius: 4, border: `1px solid ${T.border}`, background: T.surface, color: T.textSecondary, cursor: "pointer", transition: "all 0.15s" }}>
+            {theme === "light" ? "◑ DARK" : "◐ LIGHT"}
+          </button>
         </div>
         {settingsOpen && (
           <div style={{ padding: "0 14px 14px" }}>
@@ -1720,9 +1699,17 @@ async function doQuickScore(job) {
             <>
               <Card>
                 <div style={{ fontFamily: T.fontSans, fontSize: 12, color: T.textMuted, lineHeight: 1.7, marginBottom: 14 }}>
-                  Reads your LinkedIn job alert emails via Gmail and extracts every job listing automatically. Takes about 30 seconds.
+                  Paste the plain-text body of a LinkedIn job alert email below, then click Parse Jobs to extract the listings.
                 </div>
-
+                <Label>LinkedIn Alert Email Body</Label>
+                <textarea
+                  className="jsa-textarea"
+                  style={{ height: 140, marginBottom: 10 }}
+                  value={emailPaste}
+                  onChange={e => setEmailPaste(e.target.value)}
+                  placeholder={"Paste the full plain-text content of a LinkedIn job alert email here…"}
+                />
+                <Btn primary onClick={doPasteParseJobs} disabled={!emailPaste.trim()}>Parse Jobs →</Btn>
                 <ErrBox msg={emailError} />
               </Card>
 
@@ -2119,7 +2106,7 @@ async function doQuickScore(job) {
                 {supabaseJobs.length === 0
                   ? <div style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, padding: "12px 0", letterSpacing: "0.08em" }}>NO SAVED ROLES YET</div>
                   : <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 240, overflowY: "auto", marginTop: 6 }}>
-                      {[...supabaseJobs].filter(j => !dismissedSaved.includes(j.id) && j.status !== "rejected" && j.status !== "closed").map(j => enrichJob(j)).sort((a, b) => b.final_score - a.final_score).map(job => {
+                      {[...supabaseJobs].filter(j => !dismissedSaved.includes(j.id) && (j.status === "new" || j.status === "reviewing")).map(j => enrichJob(j)).sort((a, b) => b.final_score - a.final_score).map(job => {
                         const isSel = selectedSavedJob?.id === job.id;
                         const cfg = PURSUIT_CONFIG[job._pursuit] || PURSUIT_CONFIG.PASS;
                         return (
