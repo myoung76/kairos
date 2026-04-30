@@ -1190,87 +1190,23 @@ export default function JobSearchAgent() {
     return jobs;
   }
 
-  async function doFetchEmailAlerts() {
-    if (!anthropicKey) { setEmailError("Add your Anthropic API key in Settings first."); return; }
-    setEmailLoading(true); setEmailError("");
-    setEmailJobs([]); localStorage.removeItem("jsa_email_jobs"); localStorage.removeItem("jsa_email_fetched");
-
-    try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": anthropicKey.trim(),
-          "anthropic-version": "2023-06-01",
-          "anthropic-beta": "mcp-client-2025-11-20",
-          "anthropic-dangerous-direct-browser-access": "true",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 4000,
-          mcp_servers: [{ type: "url", url: "https://gmailmcp.googleapis.com/mcp/v1", name: "gmail" }],
-          tools: [{ type: "mcp_toolset", mcp_server_name: "gmail" }],
-          system: `You are a job search assistant. Read the user's LinkedIn job alert emails and extract job listings. Return ONLY a raw JSON array — no markdown, no explanation, no extra text. Each item: {"title": string, "company": string, "location": string, "url": string}. Clean URLs to base linkedin.com/jobs/view/JOBID/ format. Deduplicate by job ID. Skip entries missing title, company, or valid LinkedIn jobs URL.`,
-          messages: [{ role: "user", content: "Search my Gmail for LinkedIn job alert emails from the last 14 days (from:jobalerts-noreply@linkedin.com). Read the full content of up to 15 of the most recent threads. Extract every unique job listing and return them as a JSON array." }],
-        }),
-      });
-
-      if (!res.ok) {
-  const errBody = await res.json().catch(() => ({}));
-  throw new Error(`API error: HTTP ${res.status} — ${errBody?.error?.message || JSON.stringify(errBody)}`);
-}
-      const data = await res.json();
-      if (data.error) throw new Error(data.error.message);
-
-      const raw = data.content
-        .filter(b => b.type === "text")
-        .map(b => b.text)
-        .join("")
-        .trim()
-        .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/, "").trim();
-
-      let jobs = [];
-      try {
-        const parsed = JSON.parse(raw);
-        jobs = Array.isArray(parsed) ? parsed : [];
-      } catch {
-        const match = raw.match(/\[[\s\S]*\]/);
-        if (match) { try { jobs = JSON.parse(match[0]); } catch { jobs = []; } }
-      }
-
-      jobs = jobs.filter(j => j.title && j.company && j.url && j.url.includes("linkedin.com"));
-      jobs = jobs.map(j => {
-        try {
-          const m = j.url.match(/\/jobs\/view\/(\d+)/);
-          if (m) return { ...j, url: `https://www.linkedin.com/jobs/view/${m[1]}/` };
-        } catch {}
-        return j;
-      });
-
-      const seen = new Set();
-      jobs = jobs.filter(j => { if (seen.has(j.url)) return false; seen.add(j.url); return true; });
-
-      if (jobs.length === 0) {
-        setEmailError("No job listings found in your LinkedIn alert emails from the last 14 days.");
-        setEmailLoading(false);
-        return;
-      }
-
-      setEmailJobs(prev => {
-        const existingUrls = new Set(prev.map(j => j.url));
-        const merged = [...prev, ...jobs.filter(j => !existingUrls.has(j.url)).map(j => ({ ...j, source: "linkedin_alert" }))];
-        localStorage.setItem("jsa_email_jobs", JSON.stringify(merged));
-        return merged;
-      });
-      const now = new Date();
-      setEmailLastFetched(now);
-      localStorage.setItem("jsa_email_fetched", now.toISOString());
-
-    } catch (err) {
-      setEmailError(`Failed to fetch emails: ${err.message}`);
+  function doPasteParseJobs() {
+    setEmailError("");
+    const jobs = parseLinkedInAlertBody(emailPaste);
+    if (jobs.length === 0) {
+      setEmailError("No jobs found — make sure you pasted the full plain-text body of a LinkedIn alert email.");
+      return;
     }
-
-    setEmailLoading(false);
+    setEmailJobs(prev => {
+      const existingUrls = new Set(prev.map(j => j.url));
+      const merged = [...prev, ...jobs.filter(j => !existingUrls.has(j.url))];
+      localStorage.setItem("jsa_email_jobs", JSON.stringify(merged));
+      return merged;
+    });
+    const now = new Date();
+    setEmailLastFetched(now);
+    localStorage.setItem("jsa_email_fetched", now.toISOString());
+    setEmailPaste("");
   }
 
   function doClearEmailJobs() {
@@ -1763,9 +1699,17 @@ async function doQuickScore(job) {
             <>
               <Card>
                 <div style={{ fontFamily: T.fontSans, fontSize: 12, color: T.textMuted, lineHeight: 1.7, marginBottom: 14 }}>
-                  Reads your LinkedIn job alert emails via Gmail and extracts every job listing automatically. Takes about 30 seconds.
+                  Paste the plain-text body of a LinkedIn job alert email below, then click Parse Jobs to extract the listings.
                 </div>
-
+                <Label>LinkedIn Alert Email Body</Label>
+                <textarea
+                  className="jsa-textarea"
+                  style={{ height: 140, marginBottom: 10 }}
+                  value={emailPaste}
+                  onChange={e => setEmailPaste(e.target.value)}
+                  placeholder={"Paste the full plain-text content of a LinkedIn job alert email here…"}
+                />
+                <Btn primary onClick={doPasteParseJobs} disabled={!emailPaste.trim()}>Parse Jobs →</Btn>
                 <ErrBox msg={emailError} />
               </Card>
 
@@ -2162,7 +2106,7 @@ async function doQuickScore(job) {
                 {supabaseJobs.length === 0
                   ? <div style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, padding: "12px 0", letterSpacing: "0.08em" }}>NO SAVED ROLES YET</div>
                   : <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 240, overflowY: "auto", marginTop: 6 }}>
-                      {[...supabaseJobs].filter(j => !dismissedSaved.includes(j.id) && j.status !== "rejected" && j.status !== "closed").map(j => enrichJob(j)).sort((a, b) => b.final_score - a.final_score).map(job => {
+                      {[...supabaseJobs].filter(j => !dismissedSaved.includes(j.id) && (j.status === "new" || j.status === "reviewing")).map(j => enrichJob(j)).sort((a, b) => b.final_score - a.final_score).map(job => {
                         const isSel = selectedSavedJob?.id === job.id;
                         const cfg = PURSUIT_CONFIG[job._pursuit] || PURSUIT_CONFIG.PASS;
                         return (
