@@ -1282,6 +1282,16 @@ async function doQuickScore(job) {
     }
   }
 
+  async function doSaveAllUnscored() {
+    const toSave = emailJobs.filter(j =>
+      !quickScoring[j.url]?.startsWith("saved") &&
+      !quickScoring[j.url]?.startsWith("scoring")
+    );
+    for (const job of toSave) {
+      await doQuickScore(job);
+    }
+  }
+
   async function doRunIngestion() {
     if (!anthropicKey) { setIngestError("Add your Anthropic API key in Settings."); return; }
     setIngestRunning(true); setIngestError(""); setIngestResult(null);
@@ -1678,6 +1688,12 @@ async function doQuickScore(job) {
                           ⚡ Auto-Evaluate All
                         </button>
                       )}
+                      {emailJobs.some(j => !quickScoring[j.url]?.startsWith("saved") && !quickScoring[j.url]?.startsWith("scoring")) && (
+                        <button onClick={doSaveAllUnscored}
+                          style={{ fontFamily: T.fontMono, fontSize: 9, fontWeight: 600, letterSpacing: "0.08em", padding: "3px 10px", borderRadius: 3, border: `1px solid ${T.greenBorder}`, background: T.greenBg, color: T.green, cursor: "pointer" }}>
+                          ✓ Save All to Pipeline
+                        </button>
+                      )}
                       <button onClick={doClearEmailJobs}
                         style={{ fontFamily: T.fontMono, fontSize: 9, letterSpacing: "0.06em", padding: "2px 8px", borderRadius: 3, border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, cursor: "pointer" }}>
                         ✕ Clear All
@@ -1766,7 +1782,13 @@ async function doQuickScore(job) {
                             ✓ Save to Pipeline →
                           </button>
                         ) : aeError ? (
-                          <span style={{ fontFamily: T.fontMono, fontSize: 9, color: T.red }}>✗ Auto-eval failed</span>
+                          <>
+                            <span style={{ fontFamily: T.fontMono, fontSize: 9, color: T.red }}>✗ Scrape failed</span>
+                            <button onClick={() => doQuickScore(job)} disabled={qs === "scoring"}
+                              style={{ fontFamily: T.fontMono, fontSize: 9, fontWeight: 600, letterSpacing: "0.08em", padding: "3px 10px", borderRadius: 3, border: `1px solid ${T.accentDim}`, background: T.greenBg, color: T.green, cursor: qs === "scoring" ? "default" : "pointer", opacity: qs === "scoring" ? 0.6 : 1 }}>
+                              {qs === "scoring" ? "Saving…" : "Save Unscored →"}
+                            </button>
+                          </>
                         ) : qs?.startsWith("error") ? (
                           <span style={{ fontFamily: T.fontMono, fontSize: 9, color: T.red }}>✗ {qs.replace("error:", "")}</span>
                         ) : !aeLoading ? (
