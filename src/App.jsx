@@ -1292,6 +1292,15 @@ async function doQuickScore(job) {
     }
   }
 
+  async function doDeleteJob(id) {
+    await supabase.from('jobs').delete().eq('id', id);
+    setSupabaseJobs(prev => prev.filter(j => j.id !== id));
+  }
+
+  async function doPassJob(id) {
+    await handleStatusChange(id, "pass");
+  }
+
   async function doRunIngestion() {
     if (!anthropicKey) { setIngestError("Add your Anthropic API key in Settings."); return; }
     setIngestRunning(true); setIngestError(""); setIngestResult(null);
@@ -1936,9 +1945,14 @@ async function doQuickScore(job) {
           {supabaseLoading && <div className="pulse" style={{ textAlign: "center", padding: "40px 0", fontFamily: T.fontMono, fontSize: 10, letterSpacing: "0.1em", color: T.textMuted }}>LOADING…</div>}
           {supabaseError && <ErrBox msg={supabaseError} />}
           {!supabaseLoading && supabaseJobs.length === 0 && !supabaseError && <div style={{ textAlign: "center", padding: "48px 0", fontFamily: T.fontMono, fontSize: 10, letterSpacing: "0.1em", color: T.textMuted }}>NO ROLES IN PIPELINE YET</div>}
-          {dismissedSaved.length > 0 && <button onClick={doRestoreDismissed} style={{ marginBottom: 8, fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>show {dismissedSaved.length} hidden</button>}
+          {dismissedSaved.length > 0 && <button onClick={doRestoreDismissed} style={{ marginBottom: 4, fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>show {dismissedSaved.length} hidden</button>}
+          {supabaseJobs.filter(j => j.status === "pass").length > 0 && (
+            <div style={{ marginBottom: 8, fontFamily: T.fontMono, fontSize: 9, color: T.textMuted }}>
+              {supabaseJobs.filter(j => j.status === "pass").length} passed · <button onClick={() => supabaseJobs.filter(j => j.status === "pass").forEach(j => handleStatusChange(j.id, "new"))} style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>restore all</button>
+            </div>
+          )}
 
-          {[...supabaseJobs].filter(j => !dismissedSaved.includes(j.id)).filter(j => {
+          {[...supabaseJobs].filter(j => !dismissedSaved.includes(j.id) && j.status !== "pass").filter(j => {
             const ej = enrichJob({ ...j, jd_text: j.description || "" });
             if (savedFilter.status !== "all" && j.status !== savedFilter.status) return false;
             if (savedFilter.pursuit !== "all") {
@@ -1985,9 +1999,13 @@ async function doQuickScore(job) {
                         → Paste JD & Score
                       </button>
                       {job.url && <a href={job.url} target="_blank" rel="noopener noreferrer" style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, textDecoration: "none", letterSpacing: "0.06em", marginLeft: 10 }}>VIEW ↗</a>}
-                      <button onClick={() => doDismissSavedJob(job.id)}
-                        style={{ marginLeft: "auto", fontFamily: T.fontMono, fontSize: 9, padding: "3px 7px", borderRadius: 3, border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, cursor: "pointer" }}>
-                        ✕ Hide
+                      <button onClick={() => doPassJob(job.id)}
+                        style={{ marginLeft: "auto", fontFamily: T.fontMono, fontSize: 9, padding: "3px 7px", borderRadius: 3, border: `1px solid ${T.redBorder}`, background: T.redBg, color: T.red, cursor: "pointer" }}>
+                        ✗ Pass
+                      </button>
+                      <button onClick={() => doDeleteJob(job.id)}
+                        style={{ fontFamily: T.fontMono, fontSize: 9, padding: "3px 7px", borderRadius: 3, border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, cursor: "pointer" }}>
+                        🗑
                       </button>
                     </div>
                   ) : (
@@ -2032,9 +2050,13 @@ async function doQuickScore(job) {
                           → Re-evaluate
                         </button>
                         {job.url && <a href={job.url} target="_blank" rel="noopener noreferrer" style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, textDecoration: "none", letterSpacing: "0.06em" }}>VIEW ↗</a>}
-                        <button onClick={() => doDismissSavedJob(job.id)}
-                          style={{ marginLeft: "auto", fontFamily: T.fontMono, fontSize: 9, padding: "3px 7px", borderRadius: 3, border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, cursor: "pointer" }}>
-                          ✕ Hide
+                        <button onClick={() => doPassJob(job.id)}
+                          style={{ marginLeft: "auto", fontFamily: T.fontMono, fontSize: 9, padding: "3px 7px", borderRadius: 3, border: `1px solid ${T.redBorder}`, background: T.redBg, color: T.red, cursor: "pointer" }}>
+                          ✗ Pass
+                        </button>
+                        <button onClick={() => doDeleteJob(job.id)}
+                          style={{ fontFamily: T.fontMono, fontSize: 9, padding: "3px 7px", borderRadius: 3, border: `1px solid ${T.border}`, background: "transparent", color: T.textMuted, cursor: "pointer" }}>
+                          🗑
                         </button>
                       </div>
                     </>
@@ -2077,7 +2099,7 @@ async function doQuickScore(job) {
                 {supabaseJobs.length === 0
                   ? <div style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, padding: "12px 0", letterSpacing: "0.08em" }}>NO SAVED ROLES YET</div>
                   : <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 240, overflowY: "auto", marginTop: 6 }}>
-                      {[...supabaseJobs].filter(j => !dismissedSaved.includes(j.id) && (j.status === "new" || j.status === "reviewing")).map(j => enrichJob(j)).sort((a, b) => b.final_score - a.final_score).map(job => {
+                      {[...supabaseJobs].filter(j => !dismissedSaved.includes(j.id) && (j.status === "new" || j.status === "reviewing")).map(j => enrichJob({ ...j, jd_text: j.description || "" })).sort((a, b) => b.final_score - a.final_score).map(job => {
                         const isSel = selectedSavedJob?.id === job.id;
                         const cfg = PURSUIT_CONFIG[job._pursuit] || PURSUIT_CONFIG.PASS;
                         return (
