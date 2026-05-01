@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from './supabaseClient'
-import { runJobIngestion, SOURCES } from './ingestion.js'
+import { runJobIngestion, SOURCES, isRelevantJob } from './ingestion.js'
 
 /* ═══════════════════════════════════════════════════════════════════
    JOB SEARCH AGENT
@@ -1144,61 +1144,48 @@ export default function JobSearchAgent() {
     setQuickScoring(prev => { const next = { ...prev, [job.url]: "saved" }; localStorage.setItem("jsa_quick_scoring", JSON.stringify(next)); return next; });
   }
 
-  // ── LinkedIn alert email parser ──────────────────────────────────
-  // Parses plaintext body from LinkedIn job alert emails.
-  // Format per job block:
-  //   Title\nCompany\nLocation\n\n[optional signal line]\nView job: https://...
-  function parseLinkedInAlertBody(text) {
-    const jobs = [];
-    if (!text) return jobs;
-
-    // Split on the separator lines LinkedIn uses between jobs
-    const blocks = text.split(/[-]{5,}/);
-
-    for (const block of blocks) {
-      const lines = block.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      // Find the "View job:" line — it anchors each block
-      const jobLineIdx = lines.findIndex(l => l.startsWith("View job:"));
-      if (jobLineIdx < 2) continue; // need at least title + company before it
-
-      const url = lines[jobLineIdx].replace("View job:", "").trim();
-
-      // Work backwards from the URL line to find title, company, location
-      // Structure is always: title, company, location (in that order before url)
-      // There may be a signal line ("X connections", "This company is actively hiring") just before url
-      let dataLines = lines.slice(0, jobLineIdx);
-      // Drop trailing signal lines
-      const signalPatterns = /connections|actively hiring|promoted|easy apply/i;
-      while (dataLines.length && signalPatterns.test(dataLines[dataLines.length - 1])) {
-        dataLines.pop();
-      }
-
-      if (dataLines.length < 2) continue;
-
-      const location = dataLines[dataLines.length - 1];
-      const company  = dataLines[dataLines.length - 2];
-      const title    = dataLines[dataLines.length - 3] || dataLines[dataLines.length - 2];
-
-      // Skip if clearly not a job (footer text, unsubscribe links, etc.)
-      if (!url.includes("linkedin.com/jobs") && !url.includes("linkedin.com/comm/jobs")) continue;
-      if (title.length > 120 || company.length > 80) continue;
-
-      jobs.push({ title, company, location, url, source: "linkedin_alert" });
-    }
-
-    return jobs;
-  }
-
-  function doPasteParseJobs() {
+  function doImportJsonJobs() {
     setEmailError("");
-    const jobs = parseLinkedInAlertBody(emailPaste);
-    if (jobs.length === 0) {
-      setEmailError("No jobs found — make sure you pasted the full plain-text body of a LinkedIn alert email.");
+    const raw = emailPaste.trim();
+    if (!raw) return;
+
+    let parsed = [];
+    try {
+      const clean = raw.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/, "").trim();
+      parsed = JSON.parse(clean);
+      if (!Array.isArray(parsed)) throw new Error("Expected a JSON array");
+    } catch {
+      setEmailError("Couldn't parse JSON — paste the full JSON array from your Claude summary.");
       return;
     }
+
+    // Apply same title filter as auto-discovery
+    const relevant = parsed.filter(j => j.title && j.url && isRelevantJob(j));
+
+    if (relevant.length === 0) {
+      setEmailError(`No relevant roles found after filtering (${parsed.length} total parsed). Jobs must include a seniority signal + "product" in the title.`);
+      return;
+    }
+
+    // Dedup against Supabase jobs already saved + existing emailJobs staging
+    const savedUrls = new Set([
+      ...supabaseJobs.map(j => j.url),
+      ...emailJobs.map(j => j.url),
+    ]);
+
+    const newJobs = relevant
+      .filter(j => !savedUrls.has(j.url))
+      .map(j => ({ title: j.title, company: j.company, location: j.location || "Remote", url: j.url, source: "linkedin_alert" }));
+
+    const skipped = relevant.length - newJobs.length;
+
+    if (newJobs.length === 0) {
+      setEmailError(`All ${relevant.length} relevant roles are already in your pipeline or staging list.`);
+      return;
+    }
+
     setEmailJobs(prev => {
-      const existingUrls = new Set(prev.map(j => j.url));
-      const merged = [...prev, ...jobs.filter(j => !existingUrls.has(j.url))];
+      const merged = [...prev, ...newJobs];
       localStorage.setItem("jsa_email_jobs", JSON.stringify(merged));
       return merged;
     });
@@ -1206,6 +1193,9 @@ export default function JobSearchAgent() {
     setEmailLastFetched(now);
     localStorage.setItem("jsa_email_fetched", now.toISOString());
     setEmailPaste("");
+    if (skipped > 0) {
+      setEmailError(`Added ${newJobs.length} new role${newJobs.length !== 1 ? "s" : ""}. ${skipped} already in pipeline.`);
+    }
   }
 
   function doClearEmailJobs() {
@@ -1647,16 +1637,16 @@ async function doQuickScore(job) {
             <>
               <Card>
                 <div style={{ fontFamily: T.fontSans, fontSize: 12, color: T.textMuted, lineHeight: 1.7, marginBottom: 14 }}>
-                  Paste the plain-text body of a LinkedIn job alert email below, then click Parse Jobs to extract the listings.
+                  Paste the JSON summary from your daily Claude briefing. Jobs will be filtered for relevant titles, deduplicated against your pipeline, then added to the staging list below for scoring.
                 </div>
                 <textarea
                   className="jsa-textarea"
                   style={{ height: 140, marginBottom: 10 }}
                   value={emailPaste}
                   onChange={e => setEmailPaste(e.target.value)}
-                  placeholder={"Paste the full plain-text content of a LinkedIn job alert email here…"}
+                  placeholder={'Paste JSON array from Claude summary:\n[\n  { "title": "...", "company": "...", "location": "...", "url": "..." },\n  ...\n]'}
                 />
-                <Btn primary onClick={doPasteParseJobs} disabled={!emailPaste.trim()}>Parse Jobs →</Btn>
+                <Btn primary onClick={doImportJsonJobs} disabled={!emailPaste.trim()}>Import Jobs →</Btn>
                 <ErrBox msg={emailError} />
               </Card>
 
@@ -1664,7 +1654,7 @@ async function doQuickScore(job) {
                 <div className="fade-up">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                     <div style={{ fontFamily: T.fontMono, fontSize: 9, fontWeight: 600, letterSpacing: "0.1em", color: T.green }}>
-                      ◆ {emailJobs.filter(j => !quickScoring[j.url]?.startsWith("saved")).length} ROLE{emailJobs.filter(j => !quickScoring[j.url]?.startsWith("saved")).length !== 1 ? "S" : ""} FROM EMAIL ALERTS
+                      ◆ {emailJobs.filter(j => !quickScoring[j.url]?.startsWith("saved")).length} ROLE{emailJobs.filter(j => !quickScoring[j.url]?.startsWith("saved")).length !== 1 ? "S" : ""} FROM DAILY BRIEFING
                       {emailJobs.some(j => quickScoring[j.url]?.startsWith("saved")) && (
                         <span style={{ color: T.textMuted, fontWeight: 400, marginLeft: 8 }}>
                           · {emailJobs.filter(j => quickScoring[j.url]?.startsWith("saved")).length} saved hidden
