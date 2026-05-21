@@ -226,8 +226,14 @@ function logError(msg) { console.error(`[ingestion] ERROR: ${msg}`); }
 // 1. JOB FETCHERS
 // ─────────────────────────────────────────────────────────────────
 
+function fetchWithTimeout(url, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
 async function fetchGreenhouseJobs(companyId) {
-  const res = await fetch(`https://boards-api.greenhouse.io/v1/boards/${companyId}/jobs`);
+  const res = await fetchWithTimeout(`https://boards-api.greenhouse.io/v1/boards/${companyId}/jobs`);
   if (!res.ok) throw new Error(`Greenhouse fetch failed for "${companyId}" — HTTP ${res.status}`);
   const data = await res.json();
   if (!Array.isArray(data.jobs)) throw new Error(`Greenhouse: unexpected response for "${companyId}"`);
@@ -242,7 +248,7 @@ async function fetchGreenhouseJobs(companyId) {
 }
 
 async function fetchLeverJobs(companyId) {
-  const res = await fetch(`https://api.lever.co/v0/postings/${companyId}?mode=json`);
+  const res = await fetchWithTimeout(`https://api.lever.co/v0/postings/${companyId}?mode=json`);
   if (!res.ok) throw new Error(`Lever fetch failed for "${companyId}" — HTTP ${res.status}`);
   const data = await res.json();
   if (!Array.isArray(data)) throw new Error(`Lever: unexpected response for "${companyId}"`);
