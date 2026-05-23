@@ -1177,8 +1177,10 @@ export default function JobSearchAgent() {
       return;
     }
 
-    // Apply same title filter as auto-discovery
-    const relevant = parsed.filter(j => j.title && j.url && isRelevantJob(j));
+    // Use broadFilter — this is a curated list from Claude, not raw ATS noise.
+    // broadFilter accepts any title with a seniority signal + "product":
+    // senior, staff, principal, director, lead, head, group, vp, manager.
+    const relevant = parsed.filter(j => j.title && j.url && isRelevantJob(j, { broadFilter: true }));
 
     if (relevant.length === 0) {
       setEmailError(`No relevant roles found after filtering (${parsed.length} total parsed). Jobs must include a seniority signal + "product" in the title.`);
