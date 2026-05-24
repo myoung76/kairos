@@ -12,9 +12,14 @@
  *   FETCH_INTERVAL_HOURS  (optional, default 6)
  */
 
-import { google }      from 'googleapis';
-import { createClient } from '@supabase/supabase-js';
-import ws               from 'ws';
+import { google } from 'googleapis';
+import ws         from 'ws';
+
+// Must be set before @supabase/supabase-js is loaded — it checks
+// globalThis.WebSocket at import time and throws on Node < 22 without it.
+globalThis.WebSocket = ws;
+
+const { createClient } = await import('@supabase/supabase-js');
 
 // ─────────────────────────────────────────────────────────────────
 // Config
@@ -166,10 +171,7 @@ function parseJobsFromBody(body) {
 // ─────────────────────────────────────────────────────────────────
 
 function buildSupabaseClient() {
-  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-    global: { headers: {} },
-    realtime: { transport: ws },
-  });
+  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 }
 
 async function urlExists(supabase, url) {
