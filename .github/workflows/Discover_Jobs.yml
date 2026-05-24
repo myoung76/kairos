@@ -1,0 +1,32 @@
+name: Discover Jobs
+
+on:
+  schedule:
+    - cron: '0 6,18 * * *'  # twice daily — 6am and 6pm UTC
+  workflow_dispatch:
+
+jobs:
+  discover:
+    name: Run job ingestion pipeline
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ingestion
+        env:
+          VITE_SUPABASE_URL:      ${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY:      ${{ secrets.ANTHROPIC_API_KEY }}
+        run: node src/run-ingestion.mjs
