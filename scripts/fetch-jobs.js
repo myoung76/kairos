@@ -14,6 +14,7 @@
 
 import { google }      from 'googleapis';
 import { createClient } from '@supabase/supabase-js';
+import ws               from 'ws';
 
 // ─────────────────────────────────────────────────────────────────
 // Config
@@ -165,7 +166,10 @@ function parseJobsFromBody(body) {
 // ─────────────────────────────────────────────────────────────────
 
 function buildSupabaseClient() {
-  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  return createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    global: { headers: {} },
+    realtime: { transport: ws },
+  });
 }
 
 async function urlExists(supabase, url) {
