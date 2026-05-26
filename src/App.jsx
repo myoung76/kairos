@@ -1042,6 +1042,7 @@ export default function JobSearchAgent() {
 
   // Filters
   const [savedFilter,  setSavedFilter]  = useState({ text: "", status: "all", pursuit: "all" });
+  const [savedSort,    setSavedSort]    = useState("score"); // "score" | "newest" | "oldest"
   const [emailFilter,  setEmailFilter]  = useState({ text: "" });
 
   // LinkedIn email alerts
@@ -1333,6 +1334,13 @@ async function doQuickScore(job) {
     for (const job of toSave) {
       await doQuickScore(job);
     }
+  }
+
+  async function doBulkDelete() {
+    const ids = [...selectedJobIds];
+    await Promise.all(ids.map(id => supabase.from('jobs').delete().eq('id', id)));
+    setSupabaseJobs(prev => prev.filter(j => !selectedJobIds.has(j.id)));
+    setSelectedJobIds(new Set());
   }
 
   async function doDeleteJob(id) {
@@ -2000,12 +2008,23 @@ async function doQuickScore(job) {
               return <button key={status} onClick={() => setSavedFilter(f => ({ ...f, status }))} style={{ fontFamily: T.fontSans, fontSize: 12, fontWeight: active ? 500 : 400, padding: "3px 10px", borderRadius: 4, cursor: "pointer", border: `1px solid ${active ? T.accentDim : T.border}`, background: active ? T.greenBg : "transparent", color: active ? T.green : T.textMuted, transition: "all 0.12s" }}>{label}</button>;
             })}
             <div style={{ width: 1, height: 16, background: T.border, margin: "0 2px" }} />
-            {[{ label: "Priority", value: "PRIORITY" }, { label: "Strong", value: "STRONG" }, { label: "Unscored", value: "unscored" }, { label: "⚠ Low Conf", value: "low_confidence" }].map(({ label, value }) => {
+            {[{ label: "Priority", value: "PRIORITY" }, { label: "Strong", value: "STRONG" }, { label: "Unscored", value: "unscored" }, { label: "⚠ Low Conf", value: "low_confidence" }, { label: "🚫 Relocation", value: "relocation" }].map(({ label, value }) => {
               const active = savedFilter.pursuit === value;
-              return <button key={value} onClick={() => setSavedFilter(f => ({ ...f, pursuit: active ? "all" : value }))} style={{ fontFamily: T.fontSans, fontSize: 12, fontWeight: active ? 500 : 400, padding: "3px 10px", borderRadius: 4, cursor: "pointer", border: `1px solid ${active ? T.border : T.border}`, background: active ? T.surface : "transparent", color: active ? T.textSecondary : T.textMuted, transition: "all 0.12s" }}>{label}</button>;
+              const isRed = value === "relocation";
+              return <button key={value} onClick={() => setSavedFilter(f => ({ ...f, pursuit: active ? "all" : value }))} style={{ fontFamily: T.fontSans, fontSize: 12, fontWeight: active ? 500 : 400, padding: "3px 10px", borderRadius: 4, cursor: "pointer", border: `1px solid ${active && isRed ? T.redBorder : T.border}`, background: active && isRed ? T.redBg : active ? T.surface : "transparent", color: active && isRed ? T.red : active ? T.textSecondary : T.textMuted, transition: "all 0.12s" }}>{label}</button>;
+            })}
+            <div style={{ width: 1, height: 16, background: T.border, margin: "0 2px" }} />
+            {[{ label: "Score ↓", value: "score" }, { label: "Newest", value: "newest" }, { label: "Oldest", value: "oldest" }].map(({ label, value }) => {
+              const active = savedSort === value;
+              return <button key={value} onClick={() => setSavedSort(value)} style={{ fontFamily: T.fontSans, fontSize: 12, fontWeight: active ? 500 : 400, padding: "3px 10px", borderRadius: 4, cursor: "pointer", border: `1px solid ${active ? T.accentDim : T.border}`, background: active ? T.blueBg : "transparent", color: active ? T.blue : T.textMuted, transition: "all 0.12s" }}>{label}</button>;
             })}
             <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
               <Btn small onClick={doRefreshSupabase} disabled={reEvalRunning}>↻</Btn>
+              {selectedJobIds.size > 0 && (
+                <Btn small onClick={doBulkDelete} style={{ borderColor: T.redBorder, background: T.redBg, color: T.red }}>
+                  🗑 Delete ({selectedJobIds.size})
+                </Btn>
+              )}
               <Btn small onClick={doReScoreLowConfidence} disabled={reEvalRunning || !anthropicKey}>⚠ Re-score Low Conf</Btn>
               <Btn small primary onClick={() => doReEvaluateAll()} disabled={reEvalRunning || !supabaseJobs.length}>
                 {reEvalRunning ? "Scoring…" : selectedJobIds.size > 0 ? `Re-score (${selectedJobIds.size})` : "Re-score all"}
@@ -2051,10 +2070,16 @@ async function doQuickScore(job) {
             if (savedFilter.pursuit !== "all") {
               if (savedFilter.pursuit === "unscored") return j.score == null;
               if (savedFilter.pursuit === "low_confidence") return isLowConfidence(j);
+              if (savedFilter.pursuit === "relocation") return ej._location_tier === "relocation";
               if (ej._pursuit !== savedFilter.pursuit) return false;
             }
             return true;
           }).map(j => enrichJob({ ...j, jd_text: j.description || "" })).sort((a, b) => {
+            if (savedSort === "newest" || savedSort === "oldest") {
+              const da = new Date(a.created_at || 0).getTime();
+              const db = new Date(b.created_at || 0).getTime();
+              return savedSort === "newest" ? db - da : da - db;
+            }
             if (a.score == null && b.score == null) return 0;
             if (a.score == null) return 1;
             if (b.score == null) return -1;
@@ -2073,7 +2098,7 @@ async function doQuickScore(job) {
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontFamily: T.fontSans, fontWeight: 500, fontSize: 13, color: T.textPrimary, marginBottom: 2 }}>{job.title || "Untitled"}</div>
-                  <div style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, marginBottom: 8, letterSpacing: "0.04em" }}>{[job.company, job.location, job.created_at && new Date(job.created_at).toLocaleDateString()].filter(Boolean).join(" · ")}</div>
+                  <div style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, marginBottom: 8, letterSpacing: "0.04em" }}>{[job.company, job.location].filter(Boolean).join(" · ")}{job.created_at && ` · Added ${new Date(job.created_at).toLocaleDateString()}`}</div>
                   {job.score == null ? (
                     // Unscored card — show prompt to add JD
                     <div style={{ marginBottom: 8 }}>
