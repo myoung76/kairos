@@ -1043,6 +1043,8 @@ export default function JobSearchAgent() {
   // Filters
   const [savedFilter,  setSavedFilter]  = useState({ text: "", status: "all", pursuit: "all" });
   const [savedSort,    setSavedSort]    = useState("score"); // "score" | "newest" | "oldest"
+  const [showReport,   setShowReport]   = useState(false);
+  const [reportCopied, setReportCopied] = useState("");
   const [emailFilter,  setEmailFilter]  = useState({ text: "" });
 
   // LinkedIn email alerts
@@ -1439,11 +1441,51 @@ async function doQuickScore(job) {
   }
 
   async function handleStatusChange(jobId, newStatus) {
-    const { error } = await supabase.from('jobs').update({ status: newStatus }).eq('id', jobId);
+    const updates = { status: newStatus };
+    if (newStatus === "applied") updates.applied_at = new Date().toISOString();
+    const { error } = await supabase.from('jobs').update(updates).eq('id', jobId);
     if (error) return;
-    setSupabaseJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: newStatus } : j));
+    setSupabaseJobs(prev => prev.map(j => j.id === jobId ? { ...j, ...updates } : j));
   }
 
+
+  function getAppliedJobs() {
+    return [...supabaseJobs]
+      .filter(j => ["applied", "interviewing", "offer"].includes(j.status))
+      .sort((a, b) => new Date(a.applied_at || a.created_at) - new Date(b.applied_at || b.created_at));
+  }
+
+  function doCopyReportCsv() {
+    const jobs = getAppliedJobs();
+    const rows = [
+      ["Date Applied", "Company", "Position", "Status"],
+      ...jobs.map(j => [
+        new Date(j.applied_at || j.created_at).toLocaleDateString(),
+        j.company || "",
+        j.title || "",
+        (j.status || "").charAt(0).toUpperCase() + (j.status || "").slice(1),
+      ]),
+    ];
+    const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    navigator.clipboard.writeText(csv);
+    setReportCopied("csv");
+    setTimeout(() => setReportCopied(""), 2000);
+  }
+
+  function doCopyReportText() {
+    const jobs = getAppliedJobs();
+    const generated = `Generated: ${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}`;
+    const header = `JOB SEARCH LOG — WA Unemployment\n${generated}\n\n${"DATE".padEnd(14)}${"COMPANY".padEnd(28)}POSITION`;
+    const divider = "─".repeat(78);
+    const lines = jobs.map(j => {
+      const date = new Date(j.applied_at || j.created_at).toLocaleDateString().padEnd(14);
+      const company = (j.company || "").slice(0, 27).padEnd(28);
+      return `${date}${company}${j.title || ""}`;
+    });
+    navigator.clipboard.writeText([header, divider, ...lines].join("\n"));
+    setReportCopied("text");
+    setTimeout(() => setReportCopied(""), 2000);
+  }
 
   async function doRefreshSupabase() {
     setSupabaseLoading(true);
@@ -2020,6 +2062,7 @@ async function doQuickScore(job) {
             })}
             <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
               <Btn small onClick={doRefreshSupabase} disabled={reEvalRunning}>↻</Btn>
+              <Btn small onClick={() => setShowReport(s => !s)} style={showReport ? { borderColor: T.accentDim, background: T.greenBg, color: T.green } : {}}>📋 Report</Btn>
               {selectedJobIds.size > 0 && (
                 <Btn small onClick={doBulkDelete} style={{ borderColor: T.redBorder, background: T.redBg, color: T.red }}>
                   🗑 Delete ({selectedJobIds.size})
@@ -2031,6 +2074,66 @@ async function doQuickScore(job) {
               </Btn>
             </div>
           </div>
+
+          {/* APPLICATION REPORT */}
+          {showReport && (() => {
+            const jobs = getAppliedJobs();
+            return (
+              <div style={{ marginBottom: 14, padding: "12px 14px", background: T.surface, border: `1px solid ${T.borderFaint}`, borderRadius: 7 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <div>
+                    <span style={{ fontFamily: T.fontMono, fontSize: 9, fontWeight: 600, letterSpacing: "0.1em", color: T.textSecondary }}>
+                      📋 JOB SEARCH LOG — WA UNEMPLOYMENT
+                    </span>
+                    <span style={{ fontFamily: T.fontMono, fontSize: 9, color: T.textMuted, marginLeft: 10 }}>
+                      {jobs.length} application{jobs.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={doCopyReportCsv} style={{ fontFamily: T.fontMono, fontSize: 9, fontWeight: 600, letterSpacing: "0.07em", padding: "3px 10px", borderRadius: 3, border: `1px solid ${reportCopied === "csv" ? T.accentDim : T.border}`, background: reportCopied === "csv" ? T.greenBg : "transparent", color: reportCopied === "csv" ? T.green : T.textMuted, cursor: "pointer" }}>
+                      {reportCopied === "csv" ? "✓ Copied" : "Copy CSV"}
+                    </button>
+                    <button onClick={doCopyReportText} style={{ fontFamily: T.fontMono, fontSize: 9, fontWeight: 600, letterSpacing: "0.07em", padding: "3px 10px", borderRadius: 3, border: `1px solid ${reportCopied === "text" ? T.accentDim : T.border}`, background: reportCopied === "text" ? T.greenBg : "transparent", color: reportCopied === "text" ? T.green : T.textMuted, cursor: "pointer" }}>
+                      {reportCopied === "text" ? "✓ Copied" : "Copy Text"}
+                    </button>
+                  </div>
+                </div>
+                {jobs.length === 0 ? (
+                  <div style={{ fontFamily: T.fontSans, fontSize: 12, color: T.textMuted, padding: "8px 0" }}>
+                    No applications yet — mark roles as Applied, Interviewing, or Offer to see them here.
+                  </div>
+                ) : (
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: T.fontMono, fontSize: 10 }}>
+                    <thead>
+                      <tr style={{ borderBottom: `1px solid ${T.border}` }}>
+                        {["Date Applied", "Company", "Position", "Status"].map(h => (
+                          <th key={h} style={{ textAlign: "left", padding: "4px 8px 6px 0", fontWeight: 600, letterSpacing: "0.06em", color: T.textMuted, fontSize: 9 }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {jobs.map(j => (
+                        <tr key={j.id} style={{ borderBottom: `1px solid ${T.borderFaint}` }}>
+                          <td style={{ padding: "5px 8px 5px 0", color: T.textSecondary, whiteSpace: "nowrap" }}>
+                            {new Date(j.applied_at || j.created_at).toLocaleDateString()}
+                            {!j.applied_at && <span style={{ color: T.textMuted, fontSize: 8 }}> *</span>}
+                          </td>
+                          <td style={{ padding: "5px 8px 5px 0", color: T.textPrimary }}>{j.company || "—"}</td>
+                          <td style={{ padding: "5px 8px 5px 0", color: T.textPrimary }}>{j.title || "—"}</td>
+                          <td style={{ padding: "5px 0 5px 0", color: T.textSecondary, textTransform: "capitalize" }}>{j.status}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+                {jobs.some(j => !j.applied_at) && (
+                  <div style={{ fontFamily: T.fontMono, fontSize: 8, color: T.textMuted, marginTop: 8 }}>
+                    * Date shown is when the role was added to your pipeline, not when you applied. To track exact dates, run in Supabase SQL editor: <code style={{ background: T.panel, padding: "1px 4px", borderRadius: 2 }}>ALTER TABLE jobs ADD COLUMN applied_at timestamptz;</code>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* RE-EVAL PROGRESS */}
           {(reEvalRunning || reEvalProgress.label) && (
